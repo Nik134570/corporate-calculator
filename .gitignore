@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+.env.local
+.env.docker
+backend/.env.docker
+backend/.env
+
+# Flutter
+calculator/build/
+calculator/.dart_tool/
+calculator/.packages
+# calculator/pubspec.lock  # keep lock for reproducible builds
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
