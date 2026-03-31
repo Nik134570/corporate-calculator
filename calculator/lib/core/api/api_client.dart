@@ -9,7 +9,8 @@ class ApiClient {
   static String get baseUrl {
     if (kIsWeb) {
       final port = Uri.base.port;
-      if (port != 80 && port != 443) {
+      // port == 0 means default port (443 for HTTPS, 80 for HTTP)
+      if (port != 0 && port != 80 && port != 443) {
         return 'http://localhost:3000/api/v1';
       }
       return '/api/v1';
