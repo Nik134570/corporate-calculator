@@ -16,6 +16,8 @@ router.get('/', async (req, res, next) => {
 router.post('/', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const { name } = req.body
+    const existing = await prisma.material.findFirst({ where: { name: { equals: name, mode: 'insensitive' }, isActive: true } })
+    if (existing) return res.status(409).json({ success: false, message: 'Материал с таким названием уже существует' })
     const material = await prisma.material.create({ data: { name } })
     res.status(201).json({ success: true, data: material })
   } catch (err) { next(err) }
@@ -25,7 +27,11 @@ router.patch('/:id', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => 
   try {
     const { name, isActive } = req.body
     const data = {}
-    if (name !== undefined) data.name = name
+    if (name !== undefined) {
+      const existing = await prisma.material.findFirst({ where: { name: { equals: name, mode: 'insensitive' }, isActive: true, NOT: { id: req.params.id } } })
+      if (existing) return res.status(409).json({ success: false, message: 'Материал с таким названием уже существует' })
+      data.name = name
+    }
     if (isActive !== undefined) data.isActive = isActive
     const material = await prisma.material.update({ where: { id: req.params.id }, data })
     res.json({ success: true, data: material })

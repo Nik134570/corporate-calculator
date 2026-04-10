@@ -42,6 +42,8 @@ router.get('/', async (req, res, next) => {
 router.post('/', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const { materialId, thickness, unitPrice, allowTempered, processingIds, pieceWorkIds } = req.body
+    const existing = await prisma.productTemplate.findFirst({ where: { materialId, thickness, isActive: true } })
+    if (existing) return res.status(409).json({ success: false, message: 'Шаблон изделия с таким материалом и толщиной уже существует' })
     const item = await prisma.productTemplate.create({
       data: {
         materialId, thickness, unitPrice,
@@ -61,6 +63,13 @@ router.patch('/:id', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => 
   try {
     const { materialId, thickness, unitPrice, allowTempered, isActive, processingIds, pieceWorkIds } = req.body
     const data = {}
+    if (materialId !== undefined || thickness !== undefined) {
+      const current = await prisma.productTemplate.findUnique({ where: { id: req.params.id } })
+      const newMaterialId = materialId ?? current.materialId
+      const newThickness = thickness ?? current.thickness
+      const existing = await prisma.productTemplate.findFirst({ where: { materialId: newMaterialId, thickness: newThickness, isActive: true, NOT: { id: req.params.id } } })
+      if (existing) return res.status(409).json({ success: false, message: 'Шаблон изделия с таким материалом и толщиной уже существует' })
+    }
     if (materialId !== undefined) data.materialId = materialId
     if (thickness !== undefined) data.thickness = thickness
     if (unitPrice !== undefined) data.unitPrice = unitPrice

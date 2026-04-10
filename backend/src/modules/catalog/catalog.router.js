@@ -16,6 +16,8 @@ router.get('/services', async (req, res, next) => {
 router.post('/services', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const { name, defaultPrice } = req.body
+    const existing = await prisma.serviceTemplate.findFirst({ where: { name: { equals: name, mode: 'insensitive' }, isActive: true } })
+    if (existing) return res.status(409).json({ success: false, message: 'Услуга с таким названием уже существует' })
     const item = await prisma.serviceTemplate.create({ data: { name, defaultPrice } })
     res.status(201).json({ success: true, data: item })
   } catch (err) { next(err) }
@@ -24,7 +26,11 @@ router.patch('/services/:id', requireRole('ADMIN', 'MANAGER'), async (req, res, 
   try {
     const { name, defaultPrice } = req.body
     const data = {}
-    if (name !== undefined) data.name = name
+    if (name !== undefined) {
+      const existing = await prisma.serviceTemplate.findFirst({ where: { name: { equals: name, mode: 'insensitive' }, isActive: true, NOT: { id: req.params.id } } })
+      if (existing) return res.status(409).json({ success: false, message: 'Услуга с таким названием уже существует' })
+      data.name = name
+    }
     if (defaultPrice !== undefined) data.defaultPrice = defaultPrice
     const item = await prisma.serviceTemplate.update({ where: { id: req.params.id }, data })
     res.json({ success: true, data: item })
@@ -50,6 +56,8 @@ router.get('/processings', async (req, res, next) => {
 router.post('/processings', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const { name, pricePerMeter, productTemplateIds } = req.body
+    const existing = await prisma.processingTemplate.findFirst({ where: { name: { equals: name, mode: 'insensitive' }, isActive: true } })
+    if (existing) return res.status(409).json({ success: false, message: 'Обработка с таким названием уже существует' })
     const item = await prisma.processingTemplate.create({
       data: { name, pricePerMeter, allowedProductTemplates: productTemplateIds?.length ? { create: productTemplateIds.map(id => ({ productTemplateId: id })) } : undefined },
       include: procInclude,
@@ -61,7 +69,11 @@ router.patch('/processings/:id', requireRole('ADMIN', 'MANAGER'), async (req, re
   try {
     const { name, pricePerMeter, productTemplateIds } = req.body
     const data = {}
-    if (name !== undefined) data.name = name
+    if (name !== undefined) {
+      const existing = await prisma.processingTemplate.findFirst({ where: { name: { equals: name, mode: 'insensitive' }, isActive: true, NOT: { id: req.params.id } } })
+      if (existing) return res.status(409).json({ success: false, message: 'Обработка с таким названием уже существует' })
+      data.name = name
+    }
     if (pricePerMeter !== undefined) data.pricePerMeter = pricePerMeter
     if (productTemplateIds !== undefined) data.allowedProductTemplates = { deleteMany: {}, create: productTemplateIds.map(id => ({ productTemplateId: id })) }
     const item = await prisma.processingTemplate.update({ where: { id: req.params.id }, data, include: procInclude })
@@ -88,6 +100,8 @@ router.get('/piece-works', async (req, res, next) => {
 router.post('/piece-works', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const { name, unitPrice, productTemplateIds } = req.body
+    const existing = await prisma.pieceWorkTemplate.findFirst({ where: { name: { equals: name, mode: 'insensitive' }, isActive: true } })
+    if (existing) return res.status(409).json({ success: false, message: 'Штучная работа с таким названием уже существует' })
     const item = await prisma.pieceWorkTemplate.create({
       data: { name, unitPrice, allowedProductTemplates: productTemplateIds?.length ? { create: productTemplateIds.map(id => ({ productTemplateId: id })) } : undefined },
       include: pwInclude,
@@ -99,7 +113,11 @@ router.patch('/piece-works/:id', requireRole('ADMIN', 'MANAGER'), async (req, re
   try {
     const { name, unitPrice, productTemplateIds } = req.body
     const data = {}
-    if (name !== undefined) data.name = name
+    if (name !== undefined) {
+      const existing = await prisma.pieceWorkTemplate.findFirst({ where: { name: { equals: name, mode: 'insensitive' }, isActive: true, NOT: { id: req.params.id } } })
+      if (existing) return res.status(409).json({ success: false, message: 'Штучная работа с таким названием уже существует' })
+      data.name = name
+    }
     if (unitPrice !== undefined) data.unitPrice = unitPrice
     if (productTemplateIds !== undefined) data.allowedProductTemplates = { deleteMany: {}, create: productTemplateIds.map(id => ({ productTemplateId: id })) }
     const item = await prisma.pieceWorkTemplate.update({ where: { id: req.params.id }, data, include: pwInclude })
