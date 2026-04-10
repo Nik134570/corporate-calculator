@@ -3,12 +3,13 @@ import 'package:calculator/core/di/injection.dart';
 import 'package:calculator/core/storage/secure_storage.dart';
 import 'package:calculator/features/auth/presentation/screens/login_screen.dart';
 import 'package:calculator/features/calculator/data/models/calculation_model.dart';
-import 'package:calculator/features/calculator/data/models/material_model.dart';
+import 'package:calculator/features/calculator/data/models/product_template_model.dart';
 import 'package:calculator/features/calculator/presentation/screens/calculation_detail_screen.dart';
 import 'package:calculator/features/calculator/presentation/screens/calculations_list_screen.dart';
 import 'package:calculator/features/calculator/presentation/screens/new_calculation_screen.dart';
 import 'package:calculator/features/admin/presentation/screens/admin_screen.dart';
 import 'package:calculator/features/admin/presentation/screens/catalog_edit_screen.dart';
+import 'package:calculator/features/admin/presentation/screens/catalog_relations_screen.dart';
 import 'package:calculator/features/admin/presentation/screens/admin_settings_screen.dart';
 import 'package:calculator/features/admin/presentation/screens/audit_screen.dart';
 
@@ -38,7 +39,7 @@ final GoRouter appRouter = GoRouter(
       path: '/new-calculation',
       builder: (context, state) {
         final extra = state.extra as Map<String, dynamic>;
-        return NewCalculationScreen(materials: extra['materials'] as List<MaterialModel>);
+        return NewCalculationScreen(productTemplates: extra['productTemplates'] as List<ProductTemplateModel>);
       },
     ),
     GoRoute(
@@ -46,7 +47,7 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) {
         final extra = state.extra as Map<String, dynamic>;
         return NewCalculationScreen(
-          materials: extra['materials'] as List<MaterialModel>,
+          productTemplates: extra['productTemplates'] as List<ProductTemplateModel>,
           editCalculation: extra['calculation'] as CalculationModel,
         );
       },
@@ -57,7 +58,7 @@ final GoRouter appRouter = GoRouter(
         final extra = state.extra as Map<String, dynamic>;
         return CalculationDetailScreen(
           calculation: extra['calculation'] as CalculationModel,
-          materials: extra['materials'] as List<MaterialModel>,
+          productTemplates: extra['productTemplates'] as List<ProductTemplateModel>,
         );
       },
     ),
@@ -67,36 +68,19 @@ final GoRouter appRouter = GoRouter(
     GoRoute(path: '/admin/settings', builder: (_, __) => const AdminSettingsScreen()),
     GoRoute(
       path: '/admin/catalog/materials',
-      builder: (_, __) => CatalogEditScreen(
-        title: 'Материалы',
-        apiPath: '/materials',
-        fields: [
-          CatalogField(key: 'name', label: 'Название'),
-          CatalogField(key: 'unitPrice', label: 'Цена за м²', isNumber: true),
-        ],
-      ),
+      builder: (_, __) => const MaterialsAdminScreen(),
+    ),
+    GoRoute(
+      path: '/admin/catalog/product-templates',
+      builder: (_, __) => const ProductTemplatesAdminScreen(),
     ),
     GoRoute(
       path: '/admin/catalog/processings',
-      builder: (_, __) => CatalogEditScreen(
-        title: 'Виды обработки',
-        apiPath: '/catalog/processings',
-        fields: [
-          CatalogField(key: 'name', label: 'Название'),
-          CatalogField(key: 'pricePerMeter', label: 'Цена за м/пог', isNumber: true),
-        ],
-      ),
+      builder: (_, __) => const ProcessingsAdminScreen(),
     ),
     GoRoute(
       path: '/admin/catalog/piece-works',
-      builder: (_, __) => CatalogEditScreen(
-        title: 'Штучные работы',
-        apiPath: '/catalog/piece-works',
-        fields: [
-          CatalogField(key: 'name', label: 'Название'),
-          CatalogField(key: 'unitPrice', label: 'Цена за штуку', isNumber: true),
-        ],
-      ),
+      builder: (_, __) => const PieceWorksAdminScreen(),
     ),
     GoRoute(
       path: '/admin/catalog/services',

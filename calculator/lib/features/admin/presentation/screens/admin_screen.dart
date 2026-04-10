@@ -18,7 +18,6 @@ class AdminScreen extends StatefulWidget {
 class _AdminScreenState extends State<AdminScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  bool _workerMode = false;
 
   @override
   void initState() {
@@ -34,12 +33,6 @@ class _AdminScreenState extends State<AdminScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (_workerMode) {
-      return _WorkerModeWrapper(
-        onExit: () => setState(() => _workerMode = false),
-      );
-    }
-
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
       appBar: AppBar(
@@ -58,16 +51,6 @@ class _AdminScreenState extends State<AdminScreen>
           ],
         ),
         actions: [
-          // Переключатель режима
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: TextButton.icon(
-              onPressed: () => setState(() => _workerMode = true),
-              icon: const Icon(Icons.engineering, size: 18),
-              label: const Text('Режим работника'),
-              style: TextButton.styleFrom(foregroundColor: Colors.blue),
-            ),
-          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
@@ -90,126 +73,6 @@ class _AdminScreenState extends State<AdminScreen>
   }
 }
 
-// --- Режим работника для админа ---
-
-class _WorkerModeWrapper extends StatefulWidget {
-  final VoidCallback onExit;
-  const _WorkerModeWrapper({required this.onExit});
-
-  @override
-  State<_WorkerModeWrapper> createState() => _WorkerModeWrapperState();
-}
-
-class _WorkerModeWrapperState extends State<_WorkerModeWrapper> {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
-      appBar: AppBar(
-        backgroundColor: Colors.orange.shade700,
-        foregroundColor: Colors.white,
-        title: const Text('Режим работника'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: widget.onExit,
-          tooltip: 'Вернуться в админку',
-        ),
-        actions: [
-          TextButton.icon(
-            onPressed: widget.onExit,
-            icon: const Icon(Icons.admin_panel_settings, color: Colors.white, size: 18),
-            label: const Text('В админку', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-      body: const _WorkerCalculationsList(),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.orange.shade700,
-        onPressed: () async {
-          final materials = await getIt<CalculatorRepository>().getMaterials();
-          if (context.mounted) {
-            await context.push('/new-calculation', extra: {'materials': materials});
-          }
-        },
-        child: const Icon(Icons.add),
-      ),
-    );
-  }
-}
-
-class _WorkerCalculationsList extends StatefulWidget {
-  const _WorkerCalculationsList();
-
-  @override
-  State<_WorkerCalculationsList> createState() => _WorkerCalculationsListState();
-}
-
-class _WorkerCalculationsListState extends State<_WorkerCalculationsList> {
-  List<CalculationModel> _calculations = [];
-  List materials = [];
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    try {
-      final results = await Future.wait([
-        getIt<CalculatorRepository>().getAll(),
-        getIt<CalculatorRepository>().getMaterials(),
-      ]);
-      setState(() {
-        _calculations = results[0] as List<CalculationModel>;
-        materials = results[1] as List;
-        _loading = false;
-      });
-    } catch (e) {
-      setState(() => _loading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_calculations.isEmpty) {
-      return Center(
-        child: Text('Нет расчётов',
-            style: TextStyle(color: Colors.grey.shade500, fontSize: 18)),
-      );
-    }
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _calculations.length,
-        itemBuilder: (context, index) {
-          final c = _calculations[index];
-          return Card(
-            margin: const EdgeInsets.only(bottom: 10),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: ListTile(
-              title: Text(c.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text(c.clientName),
-              trailing: Text('${c.totalPrice.toStringAsFixed(2)} ₽',
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
-              onTap: () async {
-                await context.push('/calculation-detail', extra: {
-                  'calculation': c,
-                  'materials': materials,
-                });
-                _load();
-              },
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
 // --- Вкладка пользователей ---
 
 class _UsersTab extends StatefulWidget {
@@ -222,6 +85,7 @@ class _UsersTab extends StatefulWidget {
 class _UsersTabState extends State<_UsersTab> {
   List<Map<String, dynamic>> _users = [];
   bool _loading = true;
+  String? _currentUserId;
 
   @override
   void initState() {
@@ -231,9 +95,13 @@ class _UsersTabState extends State<_UsersTab> {
 
   Future<void> _load() async {
     try {
-      final response = await getIt<ApiClient>().dio.get('/users');
+      final results = await Future.wait([
+        getIt<ApiClient>().dio.get('/users'),
+        getIt<SecureStorage>().getUserId(),
+      ]);
       setState(() {
-        _users = List<Map<String, dynamic>>.from(response.data['data']);
+        _users = List<Map<String, dynamic>>.from((results[0] as dynamic).data['data']);
+        _currentUserId = results[1] as String?;
         _loading = false;
       });
     } catch (e) {
@@ -297,15 +165,20 @@ class _UsersTabState extends State<_UsersTab> {
                               DropdownMenuItem(value: 'WORKER', child: Text('Работник')),
                               DropdownMenuItem(value: 'ADMIN', child: Text('Админ')),
                             ],
-                            onChanged: (newRole) => _updateUser(user['id'], {'role': newRole}),
+                            onChanged: user['id'] == _currentUserId
+                                ? null
+                                : (newRole) => _updateUser(user['id'], {'role': newRole}),
                           ),
                           const SizedBox(width: 8),
-                          // Переключатель активности
-                          Switch(
-                            value: isActive,
-                            onChanged: (v) => _updateUser(user['id'], {'isActive': v}),
-                            activeColor: Colors.green,
-                          ),
+                          // Переключатель активности (скрыт для своего аккаунта)
+                          if (user['id'] != _currentUserId)
+                            Switch(
+                              value: isActive,
+                              onChanged: (v) => _updateUser(user['id'], {'isActive': v}),
+                              activeColor: Colors.green,
+                            )
+                          else
+                            const SizedBox(width: 56),
                         ],
                       ),
                     ),
@@ -722,6 +595,7 @@ class _CalculationsTab extends StatefulWidget {
 
 class _CalculationsTabState extends State<_CalculationsTab> {
   List<CalculationModel> _calculations = [];
+  List _productTemplates = [];
   bool _loading = true;
 
   @override
@@ -732,8 +606,15 @@ class _CalculationsTabState extends State<_CalculationsTab> {
 
   Future<void> _load() async {
     try {
-      final data = await getIt<CalculatorRepository>().getAll();
-      setState(() { _calculations = data; _loading = false; });
+      final results = await Future.wait([
+        getIt<CalculatorRepository>().getAll(),
+        getIt<CalculatorRepository>().getProductTemplates(),
+      ]);
+      setState(() {
+        _calculations = results[0] as List<CalculationModel>;
+        _productTemplates = results[1] as List;
+        _loading = false;
+      });
     } catch (e) {
       setState(() => _loading = false);
     }
@@ -764,17 +645,48 @@ class _CalculationsTabState extends State<_CalculationsTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _calculations.length,
-        itemBuilder: (context, index) => _AdminCalculationCard(
-          calculation: _calculations[index],
-          statusColor: _statusColor,
-          statusText: _statusText,
-        ),
+    return Scaffold(
+      backgroundColor: const Color(0xFFF1F5F9),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          await context.push('/new-calculation', extra: {
+            'productTemplates': _productTemplates,
+          });
+          if (mounted) _load();
+        },
+        child: const Icon(Icons.add),
       ),
+      body: _calculations.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.calculate_outlined, size: 80, color: Colors.grey.shade300),
+                  const SizedBox(height: 16),
+                  Text('Нет расчётов',
+                      style: TextStyle(color: Colors.grey.shade500, fontSize: 18)),
+                ],
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: _load,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _calculations.length,
+                itemBuilder: (context, index) => _AdminCalculationCard(
+                  calculation: _calculations[index],
+                  statusColor: _statusColor,
+                  statusText: _statusText,
+                  onTap: () async {
+                    await context.push('/calculation-detail', extra: {
+                      'calculation': _calculations[index],
+                      'productTemplates': _productTemplates,
+                    });
+                    if (mounted) _load();
+                  },
+                ),
+              ),
+            ),
     );
   }
 }
@@ -783,11 +695,13 @@ class _AdminCalculationCard extends StatelessWidget {
   final CalculationModel calculation;
   final Color Function(String) statusColor;
   final String Function(String) statusText;
+  final VoidCallback? onTap;
 
   const _AdminCalculationCard({
     required this.calculation,
     required this.statusColor,
     required this.statusText,
+    this.onTap,
   });
 
   @override
@@ -799,7 +713,10 @@ class _AdminCalculationCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -912,7 +829,8 @@ class _AdminCalculationCard extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }
 
@@ -960,6 +878,8 @@ class _CatalogTab extends StatelessWidget {
       children: [
         _CatalogSection(title: 'Материалы', icon: Icons.layers_outlined,
             onTap: () => context.push('/admin/catalog/materials')),
+        _CatalogSection(title: 'Наименования изделий', icon: Icons.view_list_outlined,
+            onTap: () => context.push('/admin/catalog/product-templates')),
         _CatalogSection(title: 'Виды обработки', icon: Icons.carpenter_outlined,
             onTap: () => context.push('/admin/catalog/processings')),
         _CatalogSection(title: 'Штучные работы', icon: Icons.build_outlined,

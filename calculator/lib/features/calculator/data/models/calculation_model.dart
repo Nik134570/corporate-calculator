@@ -140,6 +140,7 @@ class CalcProductModel {
   final double area;
   final double totalPrice;
   final String? materialName;
+  final String? productTemplateId;
   final List<CalcProcessingModel> processings;
   final List<CalcPieceWorkModel> pieceWorks;
 
@@ -155,6 +156,7 @@ class CalcProductModel {
     required this.area,
     required this.totalPrice,
     this.materialName,
+    this.productTemplateId,
     required this.processings,
     required this.pieceWorks,
   });
@@ -177,7 +179,8 @@ class CalcProductModel {
           : null,
       area: double.parse(json['area'].toString()),
       totalPrice: double.parse(json['totalPrice'].toString()),
-      materialName: json['material']?['name'],
+      materialName: json['productTemplate']?['material']?['name'],
+      productTemplateId: json['productTemplateId'],
       processings: (json['processings'] as List? ?? [])
           .map((e) => CalcProcessingModel.fromJson(e))
           .toList(),

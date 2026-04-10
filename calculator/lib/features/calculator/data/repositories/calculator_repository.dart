@@ -1,7 +1,7 @@
 import 'package:calculator/core/api/api_client.dart';
 import 'package:calculator/features/calculator/data/models/calculation_model.dart';
 import 'package:calculator/features/calculator/data/models/catalog_model.dart';
-import 'package:calculator/features/calculator/data/models/material_model.dart';
+import 'package:calculator/features/calculator/data/models/product_template_model.dart';
 import 'package:calculator/features/calculator/presentation/screens/new_calculation_screen.dart';
 
 class CalculatorRepository {
@@ -9,9 +9,9 @@ class CalculatorRepository {
 
   CalculatorRepository(this._apiClient);
 
-  Future<List<MaterialModel>> getMaterials() async {
-    final response = await _apiClient.dio.get('/materials');
-    return (response.data['data'] as List).map((e) => MaterialModel.fromJson(e)).toList();
+  Future<List<ProductTemplateModel>> getProductTemplates() async {
+    final response = await _apiClient.dio.get('/product-templates');
+    return (response.data['data'] as List).map((e) => ProductTemplateModel.fromJson(e)).toList();
   }
 
   Future<List<CalculationModel>> getAll() async {
@@ -46,9 +46,9 @@ class CalculatorRepository {
   }
 
   Future<List<Map<String, dynamic>>> getPendingReviews() async {
-  final response = await _apiClient.dio.get('/calculations/reviews/pending');
-  return List<Map<String, dynamic>>.from(response.data['data']);
-}
+    final response = await _apiClient.dio.get('/calculations/reviews/pending');
+    return List<Map<String, dynamic>>.from(response.data['data']);
+  }
 
   // Каталог
   Future<List<ProcessingTemplateModel>> getProcessingTemplates() async {

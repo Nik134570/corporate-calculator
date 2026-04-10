@@ -15,7 +15,7 @@ router.use(authenticate)
 const includeAll = {
   createdBy: { select: { id: true, fullName: true, email: true } },
   products: {
-    include: { processings: true, pieceWorks: true, material: true },
+    include: { processings: true, pieceWorks: true, productTemplate: { include: { material: true } } },
     orderBy: { sortOrder: 'asc' },
   },
   reviewRequest: {
@@ -64,9 +64,9 @@ router.get('/:id', async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
-const buildData = (body) => {
+const buildData = (body, autoTitle) => {
   const {
-    title, clientName, clientPhone, clientAddress, comment,
+    clientName, clientPhone, clientAddress, comment,
     delivery = 0, lifting = 0, consumables = 0, measurement = 0, installation = 0,
     discountType = 'none', discountValue = 0,
     complexityType = 'none', complexityValue = 0,
@@ -94,7 +94,7 @@ const buildData = (body) => {
     products.every(p => !p.width || !p.height)
 
   return {
-    title, clientName, clientPhone, clientAddress, comment,
+    title: autoTitle || 'Заказ', clientName, clientPhone, clientAddress, comment,
     delivery, lifting, consumables, measurement, installation,
     discountType, discountValue, complexityType, complexityValue,
     hasPriceChanges, status, totalPrice, isDraft,
@@ -102,7 +102,7 @@ const buildData = (body) => {
 }
 
 const buildProducts = (products) => products.map((p, idx) => ({
-  materialId: p.materialId || null,
+  productTemplateId: p.productTemplateId || null,
   name: p.name,
   width: p.width,
   height: p.height,
@@ -134,14 +134,20 @@ const buildProducts = (products) => products.map((p, idx) => ({
 
 router.post('/', async (req, res, next) => {
   try {
-    const data = buildData(req.body)
-    const calculation = await prisma.calculation.create({
-      data: {
-        ...data,
-        createdById: req.user.userId,
-        products: { create: buildProducts(req.body.products || []) },
-      },
-      include: includeAll,
+    const calculation = await prisma.$transaction(async (tx) => {
+      const created = await tx.calculation.create({
+        data: {
+          ...buildData(req.body, ''),
+          title: '',
+          createdById: req.user.userId,
+          products: { create: buildProducts(req.body.products || []) },
+        },
+      })
+      return tx.calculation.update({
+        where: { id: created.id },
+        data: { title: `Заказ #${created.orderNumber}` },
+        include: includeAll,
+      })
     })
     
     await logAudit(
@@ -165,7 +171,7 @@ router.put('/:id', async (req, res, next) => {
 
     await prisma.calculationProduct.deleteMany({ where: { calculationId: req.params.id } })
 
-    const data = buildData(req.body)
+    const data = buildData(req.body, existing.title)
     const calculation = await prisma.calculation.update({
       where: { id: req.params.id },
       data: {

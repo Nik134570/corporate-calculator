@@ -47,6 +47,14 @@ router.post('/', async (req, res, next) => {
 router.patch('/:id', async (req, res, next) => {
   try {
     const { role, isActive } = req.body
+    if (req.params.id === req.user.userId) {
+      if (isActive === false) {
+        return res.status(400).json({ success: false, message: 'Нельзя деактивировать собственный аккаунт' })
+      }
+      if (role !== undefined) {
+        return res.status(400).json({ success: false, message: 'Нельзя изменить роль собственного аккаунта' })
+      }
+    }
     const user = await prisma.user.update({
       where: { id: req.params.id },
       data: { ...(role && { role }), ...(isActive !== undefined && { isActive }) },

@@ -1,7 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:calculator/features/calculator/data/models/calculation_model.dart';
-import 'package:calculator/features/calculator/data/models/material_model.dart';
+import 'package:calculator/features/calculator/data/models/product_template_model.dart';
 import 'package:calculator/features/calculator/data/repositories/calculator_repository.dart';
 
 abstract class CalculatorEvent extends Equatable {
@@ -24,10 +24,10 @@ class CalculatorInitial extends CalculatorState {}
 class CalculatorLoading extends CalculatorState {}
 class CalculatorLoaded extends CalculatorState {
   final List<CalculationModel> calculations;
-  final List<MaterialModel> materials;
-  CalculatorLoaded({required this.calculations, required this.materials});
+  final List<ProductTemplateModel> productTemplates;
+  CalculatorLoaded({required this.calculations, required this.productTemplates});
   @override
-  List<Object?> get props => [calculations, materials];
+  List<Object?> get props => [calculations, productTemplates];
 }
 class CalculatorError extends CalculatorState {
   final String message;
@@ -49,11 +49,11 @@ class CalculatorBloc extends Bloc<CalculatorEvent, CalculatorState> {
     try {
       final results = await Future.wait([
         _repository.getAll(),
-        _repository.getMaterials(),
+        _repository.getProductTemplates(),
       ]);
       emit(CalculatorLoaded(
         calculations: results[0] as List<CalculationModel>,
-        materials: results[1] as List<MaterialModel>,
+        productTemplates: results[1] as List<ProductTemplateModel>,
       ));
     } catch (e) {
       emit(CalculatorError('Ошибка загрузки'));

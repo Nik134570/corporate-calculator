@@ -4,18 +4,18 @@ import 'package:intl/intl.dart';
 import 'package:calculator/core/di/injection.dart';
 import 'package:calculator/core/services/pdf_service.dart';
 import 'package:calculator/features/calculator/data/models/calculation_model.dart';
-import 'package:calculator/features/calculator/data/models/material_model.dart';
+import 'package:calculator/features/calculator/data/models/product_template_model.dart';
 import 'package:calculator/features/calculator/presentation/bloc/calculator_bloc.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 class CalculationDetailScreen extends StatelessWidget {
   final CalculationModel calculation;
-  final List<MaterialModel> materials;
+  final List<ProductTemplateModel> productTemplates;
 
   const CalculationDetailScreen({
     super.key,
     required this.calculation,
-    required this.materials,
+    required this.productTemplates,
   });
 
   @override
@@ -42,7 +42,7 @@ class CalculationDetailScreen extends StatelessWidget {
         child: ElevatedButton.icon(
           onPressed: () async {
             await context.push('/edit-calculation', extra: {
-              'materials': materials,
+              'productTemplates': productTemplates,
               'calculation': calculation,
             });
             if (context.mounted) {

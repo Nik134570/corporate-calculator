@@ -1,15 +1,15 @@
 class MaterialModel {
   final String id;
   final String name;
-  final double unitPrice;
+  final bool isActive;
 
-  MaterialModel({required this.id, required this.name, required this.unitPrice});
+  MaterialModel({required this.id, required this.name, this.isActive = true});
 
   factory MaterialModel.fromJson(Map<String, dynamic> json) {
     return MaterialModel(
       id: json['id'],
       name: json['name'],
-      unitPrice: double.parse(json['unitPrice'].toString()),
+      isActive: json['isActive'] ?? true,
     );
   }
 }

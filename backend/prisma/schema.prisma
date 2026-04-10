@@ -57,17 +57,58 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+// Справочник материалов (Стекло, Зеркало, Триплекс...)
 model Material {
   id        String   @id @default(uuid())
   name      String
-  unitPrice Decimal  @map("unit_price") @db.Decimal(12, 2)
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  products CalculationProduct[]
+  productTemplates ProductTemplate[]
 
   @@map("materials")
+}
+
+// Наименования изделий (Стекло 4мм, Зеркало 6мм...)
+model ProductTemplate {
+  id            String   @id @default(uuid())
+  materialId    String   @map("material_id")
+  thickness     String   // "4мм", "6мм" и т.д.
+  unitPrice     Decimal  @map("unit_price") @db.Decimal(12, 2)
+  allowTempered Boolean  @default(false) @map("allow_tempered")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  material           Material @relation(fields: [materialId], references: [id])
+  products           CalculationProduct[]
+  allowedProcessings ProductTemplateProcessing[]
+  allowedPieceWorks  ProductTemplatePieceWork[]
+
+  @@map("product_templates")
+}
+
+model ProductTemplateProcessing {
+  productTemplateId String @map("product_template_id")
+  processingId      String @map("processing_id")
+
+  productTemplate ProductTemplate    @relation(fields: [productTemplateId], references: [id], onDelete: Cascade)
+  processing      ProcessingTemplate @relation(fields: [processingId], references: [id], onDelete: Cascade)
+
+  @@id([productTemplateId, processingId])
+  @@map("product_template_processings")
+}
+
+model ProductTemplatePieceWork {
+  productTemplateId String @map("product_template_id")
+  pieceWorkId       String @map("piece_work_id")
+
+  productTemplate ProductTemplate   @relation(fields: [productTemplateId], references: [id], onDelete: Cascade)
+  pieceWork       PieceWorkTemplate @relation(fields: [pieceWorkId], references: [id], onDelete: Cascade)
+
+  @@id([productTemplateId, pieceWorkId])
+  @@map("product_template_piece_works")
 }
 
 model ServiceTemplate {
@@ -89,6 +130,8 @@ model ProcessingTemplate {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
+  allowedProductTemplates ProductTemplateProcessing[]
+
   @@map("processing_templates")
 }
 
@@ -99,6 +142,8 @@ model PieceWorkTemplate {
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+
+  allowedProductTemplates ProductTemplatePieceWork[]
 
   @@map("piece_work_templates")
 }
@@ -113,13 +158,14 @@ model AppSettings {
 
 model Calculation {
   id            String            @id @default(uuid())
+  orderNumber   Int               @default(autoincrement()) @map("order_number")
   title         String
   clientName    String            @map("client_name")
   clientPhone   String?           @map("client_phone")
   clientAddress String?           @map("client_address")
   comment       String?
   status        CalculationStatus @default(DRAFT)
-  isDraft Boolean @default(false) @map("is_draft")
+  isDraft       Boolean           @default(false) @map("is_draft")
   hasPriceChanges Boolean         @default(false) @map("has_price_changes")
 
   delivery     Decimal @default(0) @db.Decimal(12, 2)
@@ -164,25 +210,25 @@ model ReviewRequest {
 }
 
 model CalculationProduct {
-  id            String  @id @default(uuid())
-  calculationId String  @map("calculation_id")
-  materialId    String? @map("material_id")
+  id                String  @id @default(uuid())
+  calculationId     String  @map("calculation_id")
+  productTemplateId String? @map("product_template_id")
 
-  name             String
-  width            Decimal @db.Decimal(10, 1)
-  height           Decimal @db.Decimal(10, 1)
-  quantity         Int     @default(1)
-  isTempered       Boolean @default(false) @map("is_tempered")
-  pricePerSqm      Decimal @map("price_per_sqm") @db.Decimal(12, 2)
+  name                String
+  width               Decimal @db.Decimal(10, 1)
+  height              Decimal @db.Decimal(10, 1)
+  quantity            Int     @default(1)
+  isTempered          Boolean @default(false) @map("is_tempered")
+  pricePerSqm         Decimal @map("price_per_sqm") @db.Decimal(12, 2)
   originalPricePerSqm Decimal? @map("original_price_per_sqm") @db.Decimal(12, 2)
-  area             Decimal @db.Decimal(10, 4)
-  totalPrice       Decimal @map("total_price") @db.Decimal(12, 2)
-  sortOrder        Int     @default(0) @map("sort_order")
+  area                Decimal @db.Decimal(10, 4)
+  totalPrice          Decimal @map("total_price") @db.Decimal(12, 2)
+  sortOrder           Int     @default(0) @map("sort_order")
 
-  calculation Calculation         @relation(fields: [calculationId], references: [id], onDelete: Cascade)
-  material    Material?           @relation(fields: [materialId], references: [id])
-  processings ProductProcessing[]
-  pieceWorks  ProductPieceWork[]
+  calculation     Calculation         @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+  productTemplate ProductTemplate?    @relation(fields: [productTemplateId], references: [id])
+  processings     ProductProcessing[]
+  pieceWorks      ProductPieceWork[]
 
   @@map("calculation_products")
 }
@@ -191,10 +237,10 @@ model ProductProcessing {
   id        String @id @default(uuid())
   productId String @map("product_id")
 
-  name                 String
-  pricePerMeter        Decimal  @map("price_per_meter") @db.Decimal(12, 2)
+  name                  String
+  pricePerMeter         Decimal  @map("price_per_meter") @db.Decimal(12, 2)
   originalPricePerMeter Decimal? @map("original_price_per_meter") @db.Decimal(12, 2)
-  totalPrice           Decimal  @map("total_price") @db.Decimal(12, 2)
+  totalPrice            Decimal  @map("total_price") @db.Decimal(12, 2)
 
   product CalculationProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
 
@@ -217,14 +263,14 @@ model ProductPieceWork {
 }
 
 model AuditLog {
-  id          String   @id @default(uuid())
-  userId      String   @map("user_id")
-  userFullName String  @map("user_full_name")
-  action      String   // CALCULATION_CREATED, CALCULATION_APPROVED, CALCULATION_REJECTED, REVIEW_SUBMITTED
-  entityId    String   @map("entity_id")
-  entityTitle String   @map("entity_title")
-  details     String?
-  createdAt   DateTime @default(now()) @map("created_at")
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  userFullName String   @map("user_full_name")
+  action       String
+  entityId     String   @map("entity_id")
+  entityTitle  String   @map("entity_title")
+  details      String?
+  createdAt    DateTime @default(now()) @map("created_at")
 
   @@map("audit_logs")
 }

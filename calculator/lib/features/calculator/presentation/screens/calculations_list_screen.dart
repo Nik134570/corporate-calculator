@@ -49,7 +49,7 @@ class _CalculationsListView extends StatelessWidget {
           onPressed: () async {
             if (state is CalculatorLoaded) {
               await context.push('/new-calculation', extra: {
-                'materials': state.materials,
+                'productTemplates': state.productTemplates,
               });
               if (context.mounted) {
                 context.read<CalculatorBloc>().add(CalculatorLoadRequested());
@@ -110,7 +110,7 @@ class _CalculationsListView extends StatelessWidget {
                 itemCount: state.calculations.length,
                 itemBuilder: (context, index) => _CalculationCard(
                   calculation: state.calculations[index],
-                  materials: state.materials,
+                  productTemplates: state.productTemplates,
                 ),
               ),
             );
@@ -124,9 +124,9 @@ class _CalculationsListView extends StatelessWidget {
 
 class _CalculationCard extends StatelessWidget {
   final CalculationModel calculation;
-  final List materials;
+  final List productTemplates;
 
-  const _CalculationCard({required this.calculation, required this.materials});
+  const _CalculationCard({required this.calculation, required this.productTemplates});
 
   @override
   Widget build(BuildContext context) {
@@ -142,7 +142,7 @@ class _CalculationCard extends StatelessWidget {
           final bloc = context.read<CalculatorBloc>();
           await context.push('/calculation-detail', extra: {
             'calculation': calculation,
-            'materials': materials,
+            'productTemplates': productTemplates,
           });
           if (context.mounted) bloc.add(CalculatorLoadRequested());
         },
@@ -168,7 +168,7 @@ class _CalculationCard extends StatelessWidget {
                     onPressed: () async {
                       final bloc = context.read<CalculatorBloc>();
                       await context.push('/edit-calculation', extra: {
-                        'materials': materials,
+                        'productTemplates': productTemplates,
                         'calculation': calculation,
                       });
                       if (context.mounted) bloc.add(CalculatorLoadRequested());

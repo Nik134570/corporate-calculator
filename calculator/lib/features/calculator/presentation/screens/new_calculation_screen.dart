@@ -4,7 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:calculator/core/di/injection.dart';
 import 'package:calculator/core/services/pdf_service.dart';
 import 'package:calculator/features/calculator/data/models/calculation_model.dart';
-import 'package:calculator/features/calculator/data/models/material_model.dart';
+import 'package:calculator/features/calculator/data/models/catalog_model.dart';
+import 'package:calculator/features/calculator/data/models/product_template_model.dart';
 import 'package:calculator/features/calculator/data/repositories/calculator_repository.dart';
 
 // --- Локальные модели ---
@@ -26,8 +27,8 @@ class PieceWorkInput {
 
 class ProductInput {
   String name;
-  String? materialId;
-  String? materialName;
+  String? productTemplateId;
+  String? productTemplateName;
   double width;
   double height;
   int quantity;
@@ -40,8 +41,8 @@ class ProductInput {
 
   ProductInput({
     this.name = '',
-    this.materialId,
-    this.materialName,
+    this.productTemplateId,
+    this.productTemplateName,
     this.width = 0,
     this.height = 0,
     this.quantity = 1,
@@ -77,8 +78,8 @@ class ProductInput {
   }
 
   Map<String, dynamic> toJson() => {
-        'materialId': materialId,
-        'name': name.isEmpty ? 'Изделие' : name,
+        'productTemplateId': productTemplateId,
+        'name': name.isEmpty ? (productTemplateName ?? 'Изделие') : name,
         'width': width,
         'height': height,
         'quantity': quantity,
@@ -104,8 +105,8 @@ class ProductInput {
 
   static ProductInput fromModel(CalcProductModel m, {double temperedPrice = 100}) => ProductInput(
         name: m.name,
-        materialId: null,
-        materialName: m.materialName,
+        productTemplateId: m.productTemplateId,
+        productTemplateName: m.materialName,
         width: m.width,
         height: m.height,
         quantity: m.quantity,
@@ -134,12 +135,12 @@ class ProductInput {
 // --- Главный экран ---
 
 class NewCalculationScreen extends StatefulWidget {
-  final List<MaterialModel> materials;
+  final List<ProductTemplateModel> productTemplates;
   final CalculationModel? editCalculation;
 
   const NewCalculationScreen({
     super.key,
-    required this.materials,
+    required this.productTemplates,
     this.editCalculation,
   });
 
@@ -148,7 +149,6 @@ class NewCalculationScreen extends StatefulWidget {
 }
 
 class _NewCalculationScreenState extends State<NewCalculationScreen> {
-  late TextEditingController _titleController;
   late TextEditingController _clientNameController;
   late TextEditingController _clientPhoneController;
   late TextEditingController _clientAddressController;
@@ -167,6 +167,8 @@ class _NewCalculationScreenState extends State<NewCalculationScreen> {
   final List<ProductInput> _products = [];
   bool _saving = false;
   double _temperedPrice = 100;
+  List<ProcessingTemplateModel> _processingTemplates = [];
+  List<PieceWorkTemplateModel> _pieceWorkTemplates = [];
 
   bool get _isEditing => widget.editCalculation != null;
   bool get _hasPriceChanges => _products.any((p) => p.hasPriceChanges);
@@ -181,7 +183,6 @@ class _NewCalculationScreenState extends State<NewCalculationScreen> {
   void initState() {
     super.initState();
     final e = widget.editCalculation;
-    _titleController = TextEditingController(text: e?.title ?? 'Новый расчёт');
     _clientNameController = TextEditingController(text: e?.clientName ?? '');
     _clientPhoneController = TextEditingController(text: e?.clientPhone ?? '');
     _clientAddressController = TextEditingController(text: e?.clientAddress ?? '');
@@ -219,7 +220,7 @@ class _NewCalculationScreenState extends State<NewCalculationScreen> {
   @override
   void dispose() {
     for (final c in [
-      _titleController, _clientNameController, _clientPhoneController,
+      _clientNameController, _clientPhoneController,
       _clientAddressController, _commentController, _deliveryController,
       _liftingController, _consumablesController, _measurementController,
       _installationController, _discountValueController, _complexityValueController,
@@ -232,10 +233,17 @@ class _NewCalculationScreenState extends State<NewCalculationScreen> {
 
   Future<void> _loadSettings() async {
     try {
-      final settings = await getIt<CalculatorRepository>().getSettings();
+      final results = await Future.wait([
+        getIt<CalculatorRepository>().getSettings(),
+        getIt<CalculatorRepository>().getProcessingTemplates(),
+        getIt<CalculatorRepository>().getPieceWorkTemplates(),
+      ]);
       if (!mounted) return;
+      final settings = results[0] as AppSettingsModel;
       setState(() {
         _temperedPrice = settings.temperedPrice;
+        _processingTemplates = results[1] as List<ProcessingTemplateModel>;
+        _pieceWorkTemplates = results[2] as List<PieceWorkTemplateModel>;
         for (final p in _products) {
           p.temperedPrice = settings.temperedPrice;
         }
@@ -273,7 +281,6 @@ class _NewCalculationScreenState extends State<NewCalculationScreen> {
           .clamp(0, double.infinity);
 
   Map<String, dynamic> _buildRequestData() => {
-        'title': _titleController.text,
         'clientName': _clientNameController.text,
         'clientPhone': _clientPhoneController.text.isEmpty ? null : _clientPhoneController.text,
         'clientAddress': _clientAddressController.text.isEmpty ? null : _clientAddressController.text,
@@ -327,11 +334,7 @@ class _NewCalculationScreenState extends State<NewCalculationScreen> {
       title: 'Информация о заказе',
       child: Column(
         children: [
-          Row(children: [
-            Expanded(child: _Field(controller: _titleController, label: 'Название *')),
-            const SizedBox(width: 12),
-            Expanded(child: _Field(controller: _clientNameController, label: 'Заказчик')),
-          ]),
+          _Field(controller: _clientNameController, label: 'Заказчик'),
           const SizedBox(height: 12),
           Row(children: [
             Expanded(child: _Field(controller: _clientPhoneController, label: 'Телефон', keyboard: TextInputType.phone)),
@@ -372,7 +375,9 @@ class _NewCalculationScreenState extends State<NewCalculationScreen> {
                 key: ValueKey('product_${e.key}'),
                 index: e.key,
                 product: e.value,
-                materials: widget.materials,
+                productTemplates: widget.productTemplates,
+                processingTemplates: _processingTemplates,
+                pieceWorkTemplates: _pieceWorkTemplates,
                 onChanged: () => setState(() {}),
                 onRemove: _products.length > 1
                     ? () => setState(() => _products.removeAt(e.key))
@@ -621,12 +626,6 @@ class _NewCalculationScreenState extends State<NewCalculationScreen> {
   }
 
   Future<void> _save({required bool download}) async {
-    if (_titleController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Введите название расчёта')),
-      );
-      return;
-    }
     setState(() => _saving = true);
     try {
       final data = _buildRequestData();
@@ -685,7 +684,9 @@ class _NewCalculationScreenState extends State<NewCalculationScreen> {
 class _ProductBlock extends StatefulWidget {
   final int index;
   final ProductInput product;
-  final List<MaterialModel> materials;
+  final List<ProductTemplateModel> productTemplates;
+  final List<ProcessingTemplateModel> processingTemplates;
+  final List<PieceWorkTemplateModel> pieceWorkTemplates;
   final VoidCallback onChanged;
   final VoidCallback? onRemove;
 
@@ -693,7 +694,9 @@ class _ProductBlock extends StatefulWidget {
     super.key,
     required this.index,
     required this.product,
-    required this.materials,
+    required this.productTemplates,
+    required this.processingTemplates,
+    required this.pieceWorkTemplates,
     required this.onChanged,
     this.onRemove,
   });
@@ -740,9 +743,31 @@ class _ProductBlockState extends State<_ProductBlock> {
     widget.onChanged();
   }
 
+  ProductTemplateModel? get _selectedTemplate => widget.product.productTemplateId == null
+      ? null
+      : widget.productTemplates.where((t) => t.id == widget.product.productTemplateId).firstOrNull;
+
+  List<ProcessingTemplateModel> get _allowedProcessings {
+    final tmpl = _selectedTemplate;
+    if (tmpl == null) return widget.processingTemplates;
+    return widget.processingTemplates
+        .where((t) => tmpl.allowedProcessingIds.contains(t.id))
+        .toList();
+  }
+
+  List<PieceWorkTemplateModel> get _allowedPieceWorks {
+    final tmpl = _selectedTemplate;
+    if (tmpl == null) return widget.pieceWorkTemplates;
+    return widget.pieceWorkTemplates
+        .where((t) => tmpl.allowedPieceWorkIds.contains(t.id))
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = widget.product;
+    final tmpl = _selectedTemplate;
+    final canTemper = tmpl?.allowTempered ?? false;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -822,18 +847,23 @@ class _ProductBlockState extends State<_ProductBlock> {
                   ),
                   const SizedBox(height: 12),
 
-                  _MaterialSelector(
-                    materials: widget.materials,
-                    selectedId: p.materialId,
-                    customName: p.materialName,
+                  _ProductTemplateSelector(
+                    productTemplates: widget.productTemplates,
+                    selectedId: p.productTemplateId,
                     currentPrice: p.pricePerSqm,
                     onSelected: (id, name, price, originalPrice) {
+                      final newTmpl = id == null
+                          ? null
+                          : widget.productTemplates.where((t) => t.id == id).firstOrNull;
                       setState(() {
-                        p.materialId = id;
-                        p.materialName = name;
+                        p.productTemplateId = id;
+                        p.productTemplateName = name;
                         p.pricePerSqm = price;
                         p.originalPricePerSqm = originalPrice;
                         _priceCtrl.text = price > 0 ? price.toString() : '';
+                        if (newTmpl != null && !newTmpl.allowTempered) {
+                          p.isTempered = false;
+                        }
                       });
                       widget.onChanged();
                     },
@@ -916,41 +946,42 @@ class _ProductBlockState extends State<_ProductBlock> {
 
                   const SizedBox(height: 12),
 
-                  // Закалка
-                  InkWell(
-                    onTap: () {
-                      setState(() => p.isTempered = !p.isTempered);
-                      widget.onChanged();
-                    },
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: p.isTempered ? Colors.blueGrey.shade50 : Colors.grey.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                            color: p.isTempered ? Colors.blueGrey.shade300 : Colors.grey.shade300),
-                      ),
-                      child: Row(children: [
-                        Icon(Icons.shield_outlined, size: 18,
-                            color: p.isTempered ? Colors.blueGrey.shade600 : Colors.grey.shade400),
-                        const SizedBox(width: 8),
-                        Text('Закалка (+100 ₽)',
-                            style: TextStyle(
-                                fontWeight: FontWeight.w500,
-                                color: p.isTempered ? Colors.blueGrey.shade700 : Colors.grey.shade600)),
-                        const Spacer(),
-                        Switch(
-                          value: p.isTempered,
-                          onChanged: (v) {
-                            setState(() => p.isTempered = v);
-                            widget.onChanged();
-                          },
-                          activeColor: Colors.blueGrey.shade600,
+                  // Закалка — только если материал поддерживает
+                  if (canTemper)
+                    InkWell(
+                      onTap: () {
+                        setState(() => p.isTempered = !p.isTempered);
+                        widget.onChanged();
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: p.isTempered ? Colors.blueGrey.shade50 : Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                              color: p.isTempered ? Colors.blueGrey.shade300 : Colors.grey.shade300),
                         ),
-                      ]),
+                        child: Row(children: [
+                          Icon(Icons.shield_outlined, size: 18,
+                              color: p.isTempered ? Colors.blueGrey.shade600 : Colors.grey.shade400),
+                          const SizedBox(width: 8),
+                          Text('Закалка (+${p.temperedPrice.toStringAsFixed(0)} ₽)',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  color: p.isTempered ? Colors.blueGrey.shade700 : Colors.grey.shade600)),
+                          const Spacer(),
+                          Switch(
+                            value: p.isTempered,
+                            onChanged: (v) {
+                              setState(() => p.isTempered = v);
+                              widget.onChanged();
+                            },
+                            activeColor: Colors.blueGrey.shade600,
+                          ),
+                        ]),
+                      ),
                     ),
-                  ),
 
                   const SizedBox(height: 16),
                   const Divider(),
@@ -958,6 +989,7 @@ class _ProductBlockState extends State<_ProductBlock> {
 
                   _ProcessingsSection(
                     product: p,
+                    templates: _allowedProcessings,
                     onChanged: () { setState(() {}); widget.onChanged(); },
                   ),
 
@@ -967,6 +999,7 @@ class _ProductBlockState extends State<_ProductBlock> {
 
                   _PieceWorksSection(
                     product: p,
+                    templates: _allowedPieceWorks,
                     onChanged: () { setState(() {}); widget.onChanged(); },
                   ),
                 ],
@@ -979,140 +1012,115 @@ class _ProductBlockState extends State<_ProductBlock> {
   }
 }
 
-// --- Выбор материала ---
+// --- Выбор наименования изделия ---
 
-class _MaterialSelector extends StatefulWidget {
-  final List<MaterialModel> materials;
+class _ProductTemplateSelector extends StatelessWidget {
+  final List<ProductTemplateModel> productTemplates;
   final String? selectedId;
-  final String? customName;
   final double currentPrice;
   final Function(String? id, String? name, double price, double? originalPrice) onSelected;
 
-  const _MaterialSelector({
-    required this.materials,
+  const _ProductTemplateSelector({
+    required this.productTemplates,
     required this.selectedId,
-    required this.customName,
     required this.currentPrice,
     required this.onSelected,
   });
 
   @override
-  State<_MaterialSelector> createState() => _MaterialSelectorState();
-}
+  Widget build(BuildContext context) {
+    final selected = selectedId != null
+        ? productTemplates.where((t) => t.id == selectedId).firstOrNull
+        : null;
 
-class _MaterialSelectorState extends State<_MaterialSelector> {
-
-  @override
-  void initState() {
-    super.initState();
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
-  @override
-Widget build(BuildContext context) {
-  return InkWell(
-    onTap: () => _showPicker(context),
-    borderRadius: BorderRadius.circular(4),
-    child: InputDecorator(
-      decoration: const InputDecoration(
-        labelText: 'Материал',
-        border: OutlineInputBorder(),
-        isDense: true,
-        suffixIcon: Icon(Icons.arrow_drop_down),
-      ),
-      child: Text(
-        widget.selectedId != null
-            ? (widget.materials
-                    .where((m) => m.id == widget.selectedId)
-                    .firstOrNull
-                    ?.name ??
-                'Выбрать...')
-            : 'Выбрать...',
-        style: TextStyle(
-          color: widget.selectedId != null ? Colors.black87 : Colors.grey.shade500,
-          fontSize: 14,
+    return InkWell(
+      onTap: () => _showPicker(context),
+      borderRadius: BorderRadius.circular(4),
+      child: InputDecorator(
+        decoration: const InputDecoration(
+          labelText: 'Наименование',
+          border: OutlineInputBorder(),
+          isDense: true,
+          suffixIcon: Icon(Icons.arrow_drop_down),
         ),
-        overflow: TextOverflow.ellipsis,
+        child: Text(
+          selected?.displayName ?? 'Выбрать...',
+          style: TextStyle(
+            color: selected != null ? Colors.black87 : Colors.grey.shade500,
+            fontSize: 14,
+          ),
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   void _showPicker(BuildContext context) {
-    final searchCtrl = TextEditingController();
+    // Группируем по materialName
+    final groups = <String, List<ProductTemplateModel>>{};
+    for (final t in productTemplates) {
+      groups.putIfAbsent(t.materialName, () => []).add(t);
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
-          final query = searchCtrl.text.toLowerCase();
-          final filtered = query.isEmpty
-              ? widget.materials
-              : widget.materials.where((m) => m.name.toLowerCase().contains(query)).toList();
-
-          return Container(
-            height: MediaQuery.of(context).size.height * 0.7,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      builder: (ctx) => Container(
+        height: MediaQuery.of(ctx).size.height * 0.7,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              width: 40, height: 4,
+              decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
             ),
-            child: Column(
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(top: 8),
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
-                ),
-                const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text('Выбор материала', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: TextField(
-                    controller: searchCtrl,
-                    decoration: InputDecoration(
-                      hintText: 'Поиск...',
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      isDense: true,
-                    ),
-                    onChanged: (_) => setState(() {}),
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Выбор наименования', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                children: [
+                  ListTile(
+                    dense: true,
+                    title: const Text('Без наименования'),
+                    leading: const Icon(Icons.close, size: 20),
+                    onTap: () { onSelected(null, null, 0, null); Navigator.pop(ctx); },
                   ),
-                ),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
+                  ...groups.entries.map((entry) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      ListTile(
-                        title: const Text('Без материала'),
-                        leading: const Icon(Icons.close),
-                        onTap: () { widget.onSelected(null, null, 0, null); Navigator.pop(context); },
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                        child: Text(entry.key,
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold,
+                                color: Colors.grey.shade600, letterSpacing: 0.5)),
                       ),
-                      ...filtered.map((m) => ListTile(
-                            title: Text(m.name),
-                            subtitle: Text('${m.unitPrice} ₽/м²'),
-                            trailing: widget.selectedId == m.id
+                      ...entry.value.map((t) => ListTile(
+                            dense: true,
+                            title: Text(t.thickness),
+                            subtitle: Text('${t.unitPrice.toStringAsFixed(0)} ₽/м²'),
+                            trailing: selectedId == t.id
                                 ? const Icon(Icons.check, color: Colors.blue)
                                 : null,
                             onTap: () {
-                              widget.onSelected(m.id, m.name, m.unitPrice, m.unitPrice);
-                              Navigator.pop(context);
+                              onSelected(t.id, t.displayName, t.unitPrice, t.unitPrice);
+                              Navigator.pop(ctx);
                             },
                           )),
                     ],
-                  ),
-                ),
-              ],
+                  )),
+                ],
+              ),
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }
@@ -1122,40 +1130,97 @@ Widget build(BuildContext context) {
 
 class _ProcessingsSection extends StatefulWidget {
   final ProductInput product;
+  final List<ProcessingTemplateModel> templates;
   final VoidCallback onChanged;
-  const _ProcessingsSection({required this.product, required this.onChanged});
+  const _ProcessingsSection({
+    required this.product,
+    required this.templates,
+    required this.onChanged,
+  });
 
   @override
   State<_ProcessingsSection> createState() => _ProcessingsSectionState();
 }
 
 class _ProcessingsSectionState extends State<_ProcessingsSection> {
-  final List<TextEditingController> _nameCtrl = [];
   final List<TextEditingController> _priceCtrl = [];
 
   void _syncControllers() {
-    while (_nameCtrl.length < widget.product.processings.length) {
-      final i = _nameCtrl.length;
-      _nameCtrl.add(TextEditingController(text: widget.product.processings[i].name));
+    while (_priceCtrl.length < widget.product.processings.length) {
+      final i = _priceCtrl.length;
       _priceCtrl.add(TextEditingController(
           text: widget.product.processings[i].pricePerMeter == 0
-              ? '' : widget.product.processings[i].pricePerMeter.toString()));
+              ? ''
+              : widget.product.processings[i].pricePerMeter.toString()));
     }
   }
 
   @override
-  void initState() { super.initState(); _syncControllers(); }
+  void initState() {
+    super.initState();
+    _syncControllers();
+  }
 
   @override
   void dispose() {
-    for (final c in _nameCtrl) c.dispose();
     for (final c in _priceCtrl) c.dispose();
     super.dispose();
+  }
+
+  void _showPicker() {
+    final added = widget.product.processings.map((p) => p.name).toSet();
+    final available = widget.templates.where((t) => !added.contains(t.name)).toList();
+
+    if (available.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Все доступные обработки уже добавлены')),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(top: 8),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+          ),
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('Выбрать обработку',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ),
+          ...available.map((t) => ListTile(
+                title: Text(t.name),
+                subtitle: Text('${t.pricePerMeter} ₽/м'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  setState(() {
+                    widget.product.processings.add(ProcessingInput(
+                      name: t.name,
+                      pricePerMeter: t.pricePerMeter,
+                      originalPricePerMeter: t.pricePerMeter,
+                    ));
+                    _priceCtrl.add(TextEditingController(text: t.pricePerMeter.toString()));
+                  });
+                  widget.onChanged();
+                },
+              )),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     _syncControllers();
+    final canAdd = widget.product.processings.length < 3 && widget.templates.isNotEmpty;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1167,18 +1232,17 @@ class _ProcessingsSectionState extends State<_ProcessingsSection> {
               const SizedBox(width: 8),
               _Badge('${widget.product.processings.length}/3'),
             ]),
-            if (widget.product.processings.length < 3)
+            if (canAdd)
               TextButton.icon(
-                onPressed: () {
-                  setState(() {
-                    widget.product.processings.add(ProcessingInput());
-                    _nameCtrl.add(TextEditingController());
-                    _priceCtrl.add(TextEditingController());
-                  });
-                  widget.onChanged();
-                },
+                onPressed: _showPicker,
                 icon: const Icon(Icons.add, size: 16),
                 label: const Text('Добавить'),
+              )
+            else if (widget.templates.isEmpty && widget.product.processings.length < 3)
+              Tooltip(
+                message: 'Для выбранного материала нет доступных видов обработки',
+                child: Text('Нет доступных',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
               ),
           ],
         ),
@@ -1190,10 +1254,13 @@ class _ProcessingsSectionState extends State<_ProcessingsSection> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(children: [
                   Expanded(
-                    child: TextField(
-                      controller: _nameCtrl[e.key],
-                      decoration: const InputDecoration(hintText: 'Вид обработки', border: OutlineInputBorder(), isDense: true),
-                      onChanged: (v) { e.value.name = v; widget.onChanged(); },
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      ),
+                      child: Text(e.value.name, style: const TextStyle(fontSize: 14)),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -1214,7 +1281,6 @@ class _ProcessingsSectionState extends State<_ProcessingsSection> {
                     onPressed: () {
                       setState(() {
                         widget.product.processings.removeAt(e.key);
-                        _nameCtrl.removeAt(e.key).dispose();
                         _priceCtrl.removeAt(e.key).dispose();
                       });
                       widget.onChanged();
@@ -1233,43 +1299,102 @@ class _ProcessingsSectionState extends State<_ProcessingsSection> {
 
 class _PieceWorksSection extends StatefulWidget {
   final ProductInput product;
+  final List<PieceWorkTemplateModel> templates;
   final VoidCallback onChanged;
-  const _PieceWorksSection({required this.product, required this.onChanged});
+  const _PieceWorksSection({
+    required this.product,
+    required this.templates,
+    required this.onChanged,
+  });
 
   @override
   State<_PieceWorksSection> createState() => _PieceWorksSectionState();
 }
 
 class _PieceWorksSectionState extends State<_PieceWorksSection> {
-  final List<TextEditingController> _nameCtrl = [];
   final List<TextEditingController> _qtyCtrl = [];
   final List<TextEditingController> _priceCtrl = [];
 
   void _syncControllers() {
-    while (_nameCtrl.length < widget.product.pieceWorks.length) {
-      final i = _nameCtrl.length;
-      _nameCtrl.add(TextEditingController(text: widget.product.pieceWorks[i].name));
+    while (_qtyCtrl.length < widget.product.pieceWorks.length) {
+      final i = _qtyCtrl.length;
       _qtyCtrl.add(TextEditingController(text: widget.product.pieceWorks[i].quantity.toString()));
       _priceCtrl.add(TextEditingController(
           text: widget.product.pieceWorks[i].unitPrice == 0
-              ? '' : widget.product.pieceWorks[i].unitPrice.toString()));
+              ? ''
+              : widget.product.pieceWorks[i].unitPrice.toString()));
     }
   }
 
   @override
-  void initState() { super.initState(); _syncControllers(); }
+  void initState() {
+    super.initState();
+    _syncControllers();
+  }
 
   @override
   void dispose() {
-    for (final c in _nameCtrl) c.dispose();
     for (final c in _qtyCtrl) c.dispose();
     for (final c in _priceCtrl) c.dispose();
     super.dispose();
   }
 
+  void _showPicker() {
+    final added = widget.product.pieceWorks.map((p) => p.name).toSet();
+    final available = widget.templates.where((t) => !added.contains(t.name)).toList();
+
+    if (available.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Все доступные штучные работы уже добавлены')),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(top: 8),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+          ),
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('Выбрать штучную работу',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ),
+          ...available.map((t) => ListTile(
+                title: Text(t.name),
+                subtitle: Text('${t.unitPrice} ₽/шт'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  setState(() {
+                    widget.product.pieceWorks.add(PieceWorkInput(
+                      name: t.name,
+                      quantity: 1,
+                      unitPrice: t.unitPrice,
+                      originalUnitPrice: t.unitPrice,
+                    ));
+                    _qtyCtrl.add(TextEditingController(text: '1'));
+                    _priceCtrl.add(TextEditingController(text: t.unitPrice.toString()));
+                  });
+                  widget.onChanged();
+                },
+              )),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     _syncControllers();
+    final canAdd = widget.product.pieceWorks.length < 5 && widget.templates.isNotEmpty;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1281,19 +1406,17 @@ class _PieceWorksSectionState extends State<_PieceWorksSection> {
               const SizedBox(width: 8),
               _Badge('${widget.product.pieceWorks.length}/5'),
             ]),
-            if (widget.product.pieceWorks.length < 5)
+            if (canAdd)
               TextButton.icon(
-                onPressed: () {
-                  setState(() {
-                    widget.product.pieceWorks.add(PieceWorkInput());
-                    _nameCtrl.add(TextEditingController());
-                    _qtyCtrl.add(TextEditingController(text: '1'));
-                    _priceCtrl.add(TextEditingController());
-                  });
-                  widget.onChanged();
-                },
+                onPressed: _showPicker,
                 icon: const Icon(Icons.add, size: 16),
                 label: const Text('Добавить'),
+              )
+            else if (widget.templates.isEmpty && widget.product.pieceWorks.length < 5)
+              Tooltip(
+                message: 'Для выбранного материала нет доступных штучных работ',
+                child: Text('Нет доступных',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
               ),
           ],
         ),
@@ -1306,10 +1429,13 @@ class _PieceWorksSectionState extends State<_PieceWorksSection> {
                 child: Row(children: [
                   Expanded(
                     flex: 3,
-                    child: TextField(
-                      controller: _nameCtrl[e.key],
-                      decoration: const InputDecoration(hintText: 'Напр: Отверстие', border: OutlineInputBorder(), isDense: true),
-                      onChanged: (v) { e.value.name = v; widget.onChanged(); },
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      ),
+                      child: Text(e.value.name, style: const TextStyle(fontSize: 14)),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -1318,7 +1444,10 @@ class _PieceWorksSectionState extends State<_PieceWorksSection> {
                       controller: _qtyCtrl[e.key],
                       hint: 'Кол',
                       isInteger: true,
-                      onChanged: (v) { e.value.quantity = int.tryParse(v) ?? 1; widget.onChanged(); },
+                      onChanged: (v) {
+                        e.value.quantity = int.tryParse(v) ?? 1;
+                        widget.onChanged();
+                      },
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -1339,7 +1468,6 @@ class _PieceWorksSectionState extends State<_PieceWorksSection> {
                     onPressed: () {
                       setState(() {
                         widget.product.pieceWorks.removeAt(e.key);
-                        _nameCtrl.removeAt(e.key).dispose();
                         _qtyCtrl.removeAt(e.key).dispose();
                         _priceCtrl.removeAt(e.key).dispose();
                       });

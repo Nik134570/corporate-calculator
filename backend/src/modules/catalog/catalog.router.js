@@ -13,7 +13,6 @@ router.get('/services', async (req, res, next) => {
     res.json({ success: true, data: items })
   } catch (err) { next(err) }
 })
-
 router.post('/services', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const { name, defaultPrice } = req.body
@@ -21,7 +20,6 @@ router.post('/services', requireRole('ADMIN', 'MANAGER'), async (req, res, next)
     res.status(201).json({ success: true, data: item })
   } catch (err) { next(err) }
 })
-
 router.patch('/services/:id', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     const { name, defaultPrice } = req.body
@@ -32,7 +30,6 @@ router.patch('/services/:id', requireRole('ADMIN', 'MANAGER'), async (req, res, 
     res.json({ success: true, data: item })
   } catch (err) { next(err) }
 })
-
 router.delete('/services/:id', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     await prisma.serviceTemplate.update({ where: { id: req.params.id }, data: { isActive: false } })
@@ -41,32 +38,36 @@ router.delete('/services/:id', requireRole('ADMIN', 'MANAGER'), async (req, res,
 })
 
 // --- Шаблоны обработки ---
+const procInclude = { allowedProductTemplates: { select: { productTemplateId: true } } }
+const fmtProc = i => ({ ...i, productTemplateIds: i.allowedProductTemplates.map(x => x.productTemplateId), allowedProductTemplates: undefined })
+
 router.get('/processings', async (req, res, next) => {
   try {
-    const items = await prisma.processingTemplate.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } })
-    res.json({ success: true, data: items })
+    const items = await prisma.processingTemplate.findMany({ where: { isActive: true }, orderBy: { name: 'asc' }, include: procInclude })
+    res.json({ success: true, data: items.map(fmtProc) })
   } catch (err) { next(err) }
 })
-
 router.post('/processings', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
-    const { name, pricePerMeter } = req.body
-    const item = await prisma.processingTemplate.create({ data: { name, pricePerMeter } })
-    res.status(201).json({ success: true, data: item })
+    const { name, pricePerMeter, productTemplateIds } = req.body
+    const item = await prisma.processingTemplate.create({
+      data: { name, pricePerMeter, allowedProductTemplates: productTemplateIds?.length ? { create: productTemplateIds.map(id => ({ productTemplateId: id })) } : undefined },
+      include: procInclude,
+    })
+    res.status(201).json({ success: true, data: fmtProc(item) })
   } catch (err) { next(err) }
 })
-
 router.patch('/processings/:id', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
-    const { name, pricePerMeter } = req.body
+    const { name, pricePerMeter, productTemplateIds } = req.body
     const data = {}
     if (name !== undefined) data.name = name
     if (pricePerMeter !== undefined) data.pricePerMeter = pricePerMeter
-    const item = await prisma.processingTemplate.update({ where: { id: req.params.id }, data })
-    res.json({ success: true, data: item })
+    if (productTemplateIds !== undefined) data.allowedProductTemplates = { deleteMany: {}, create: productTemplateIds.map(id => ({ productTemplateId: id })) }
+    const item = await prisma.processingTemplate.update({ where: { id: req.params.id }, data, include: procInclude })
+    res.json({ success: true, data: fmtProc(item) })
   } catch (err) { next(err) }
 })
-
 router.delete('/processings/:id', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     await prisma.processingTemplate.update({ where: { id: req.params.id }, data: { isActive: false } })
@@ -75,32 +76,36 @@ router.delete('/processings/:id', requireRole('ADMIN', 'MANAGER'), async (req, r
 })
 
 // --- Шаблоны штучных работ ---
+const pwInclude = { allowedProductTemplates: { select: { productTemplateId: true } } }
+const fmtPw = i => ({ ...i, productTemplateIds: i.allowedProductTemplates.map(x => x.productTemplateId), allowedProductTemplates: undefined })
+
 router.get('/piece-works', async (req, res, next) => {
   try {
-    const items = await prisma.pieceWorkTemplate.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } })
-    res.json({ success: true, data: items })
+    const items = await prisma.pieceWorkTemplate.findMany({ where: { isActive: true }, orderBy: { name: 'asc' }, include: pwInclude })
+    res.json({ success: true, data: items.map(fmtPw) })
   } catch (err) { next(err) }
 })
-
 router.post('/piece-works', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
-    const { name, unitPrice } = req.body
-    const item = await prisma.pieceWorkTemplate.create({ data: { name, unitPrice } })
-    res.status(201).json({ success: true, data: item })
+    const { name, unitPrice, productTemplateIds } = req.body
+    const item = await prisma.pieceWorkTemplate.create({
+      data: { name, unitPrice, allowedProductTemplates: productTemplateIds?.length ? { create: productTemplateIds.map(id => ({ productTemplateId: id })) } : undefined },
+      include: pwInclude,
+    })
+    res.status(201).json({ success: true, data: fmtPw(item) })
   } catch (err) { next(err) }
 })
-
 router.patch('/piece-works/:id', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
-    const { name, unitPrice } = req.body
+    const { name, unitPrice, productTemplateIds } = req.body
     const data = {}
     if (name !== undefined) data.name = name
     if (unitPrice !== undefined) data.unitPrice = unitPrice
-    const item = await prisma.pieceWorkTemplate.update({ where: { id: req.params.id }, data })
-    res.json({ success: true, data: item })
+    if (productTemplateIds !== undefined) data.allowedProductTemplates = { deleteMany: {}, create: productTemplateIds.map(id => ({ productTemplateId: id })) }
+    const item = await prisma.pieceWorkTemplate.update({ where: { id: req.params.id }, data, include: pwInclude })
+    res.json({ success: true, data: fmtPw(item) })
   } catch (err) { next(err) }
 })
-
 router.delete('/piece-works/:id', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
     await prisma.pieceWorkTemplate.update({ where: { id: req.params.id }, data: { isActive: false } })
