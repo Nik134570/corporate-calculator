@@ -412,7 +412,15 @@ class _ReviewCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => context.push('/calculation-detail', extra: {
+          'calculation': calc,
+          'productTemplates': <dynamic>[],
+          'highlightChanges': true,
+          'showEditButton': false,
+        }),
+        child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -428,6 +436,7 @@ class _ReviewCard extends StatelessWidget {
                   child: Text(calc.title,
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 ),
+                const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
               ],
             ),
             const SizedBox(height: 4),
@@ -490,21 +499,7 @@ class _ReviewCard extends StatelessWidget {
               ),
             ],
 
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => context.push('/calculation-detail', extra: {
-                  'calculation': calc,
-                  'productTemplates': <dynamic>[],
-                  'highlightChanges': true,
-                  'showEditButton': false,
-                }),
-                icon: const Icon(Icons.open_in_new, size: 16),
-                label: const Text('Открыть расчёт'),
-              ),
-            ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
@@ -534,6 +529,7 @@ class _ReviewCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }
