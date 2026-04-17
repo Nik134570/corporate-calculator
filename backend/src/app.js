@@ -11,6 +11,7 @@ const catalogRouter = require('./modules/catalog/catalog.router')
 const productTemplatesRouter = require('./modules/product-templates/product-templates.router')
 const settingsRouter = require('./modules/settings/settings.router')
 const auditRouter = require('./modules/audit/audit.router')
+const notificationsRouter = require('./modules/notifications/notifications.router')
 
 const app = express()
 
@@ -43,6 +44,7 @@ app.use('/api/v1/product-templates', productTemplatesRouter)
 app.use('/api/v1/settings', settingsRouter)
 
 app.use('/api/v1/audit', auditRouter)
+app.use('/api/v1/notifications', notificationsRouter)
 app.get('/health', (req, res) => res.json({ status: 'ok' }))
 app.use(errorMiddleware)
 

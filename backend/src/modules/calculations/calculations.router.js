@@ -6,7 +6,11 @@ const ApiError = require('../../utils/ApiError')
 const logAudit = async (userId, userFullName, action, entityId, entityTitle, details) => {
   await prisma.auditLog.create({
     data: { userId, userFullName, action, entityId, entityTitle, details }
-  }).catch(() => {}) // не ломаем основной запрос если аудит упал
+  }).catch(() => {})
+}
+
+const notify = async (userId, title, message) => {
+  await prisma.notification.create({ data: { userId, title, message } }).catch(() => {})
 }
 
 const router = Router()
@@ -180,6 +184,12 @@ router.put('/:id', async (req, res, next) => {
       },
       include: includeAll,
     })
+
+    // Уведомить работника если админ изменил его расчёт
+    if (req.user.role !== 'WORKER' && existing.createdById !== req.user.userId) {
+      await notify(existing.createdById, 'Расчёт изменён', `Администратор изменил ваш расчёт «${existing.title}»`)
+    }
+
     res.json({ success: true, data: calculation })
   } catch (err) { next(err) }
 })
@@ -239,6 +249,11 @@ router.post('/:id/approve', requireRole('ADMIN', 'MANAGER'), async (req, res, ne
       existing.title,
       comment || null
     )
+    await notify(
+      existing.createdById,
+      'Запрос одобрен',
+      `Ваш расчёт «${existing.title}» одобрен${comment ? `. ${comment}` : ''}`
+    )
     res.json({ success: true })
   } catch (err) { next(err) }
 })
@@ -265,6 +280,11 @@ router.post('/:id/reject', requireRole('ADMIN', 'MANAGER'), async (req, res, nex
       existing.title,
       comment || null
     )
+    await notify(
+      existing.createdById,
+      'Запрос отклонён',
+      `Ваш расчёт «${existing.title}» отклонён${comment ? `. ${comment}` : ''}`
+    )
     res.json({ success: true })
   } catch (err) { next(err) }
 })
@@ -273,7 +293,13 @@ router.delete('/:id', async (req, res, next) => {
   try {
     const calculation = await prisma.calculation.findUnique({ where: { id: req.params.id } })
     if (!calculation) throw new ApiError(404, 'Not found')
-    if (calculation.createdById !== req.user.userId && req.user.role === 'WORKER') throw new ApiError(403, 'Forbidden')
+    if (req.user.role === 'WORKER') throw new ApiError(403, 'Удаление расчётов недоступно')
+
+    // Уведомить работника если его расчёт удалил кто-то другой
+    if (calculation.createdById !== req.user.userId) {
+      await notify(calculation.createdById, 'Расчёт удалён', `Администратор удалил ваш расчёт «${calculation.title}»`)
+    }
+
     await prisma.calculation.delete({ where: { id: req.params.id } })
     res.json({ success: true })
   } catch (err) { next(err) }

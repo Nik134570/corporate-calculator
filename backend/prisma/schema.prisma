@@ -41,6 +41,7 @@ model User {
   calculations     Calculation[]
   reviewRequests   ReviewRequest[] @relation("ReviewRequestedBy")
   reviewedRequests ReviewRequest[] @relation("ReviewReviewedBy")
+  notifications    Notification[]
 
   @@map("users")
 }
@@ -260,6 +261,19 @@ model ProductPieceWork {
   product CalculationProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@map("product_piece_works")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  title     String
+  message   String
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
 }
 
 model AuditLog {

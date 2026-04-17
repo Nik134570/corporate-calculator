@@ -137,11 +137,13 @@ class ProductInput {
 class NewCalculationScreen extends StatefulWidget {
   final List<ProductTemplateModel> productTemplates;
   final CalculationModel? editCalculation;
+  final bool isWorker;
 
   const NewCalculationScreen({
     super.key,
     required this.productTemplates,
     this.editCalculation,
+    this.isWorker = false,
   });
 
   @override
@@ -171,6 +173,8 @@ class _NewCalculationScreenState extends State<NewCalculationScreen> {
   List<PieceWorkTemplateModel> _pieceWorkTemplates = [];
 
   bool get _isEditing => widget.editCalculation != null;
+  // Работник редактирует существующий расчёт → обязательная модерация
+  bool get _requiresReview => _isEditing && widget.isWorker;
   bool get _hasPriceChanges => _products.any((p) => p.hasPriceChanges);
 
   bool get _isDraft {
@@ -504,8 +508,8 @@ class _NewCalculationScreenState extends State<NewCalculationScreen> {
             ],
           ),
 
-          // Плашка изменения цен
-          if (_hasPriceChanges) ...[
+          // Плашка изменения цен (только не в режиме обязательной модерации)
+          if (_hasPriceChanges && !_requiresReview) ...[
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
@@ -544,51 +548,105 @@ class _NewCalculationScreenState extends State<NewCalculationScreen> {
 
           const SizedBox(height: 16),
 
-          Row(children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _saving ? null : () => _save(download: false),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.white30),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                child: _saving
-                    ? const SizedBox(height: 18, width: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Text('Сохранить'),
+          if (_requiresReview) ...[
+            // Работник редактирует существующий расчёт — только модерация
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.orange.shade400),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: _saving ? null : () => _save(download: true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF3B82F6),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Row(children: [
+                Icon(Icons.info_outline, color: Colors.orange.shade300, size: 16),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Изменения требуют одобрения администратора',
+                    style: TextStyle(color: Colors.orange, fontSize: 12),
+                  ),
                 ),
-                icon: const Icon(Icons.picture_as_pdf, size: 18),
-                label: const Text('PDF'),
-              ),
+              ]),
             ),
-          ]),
-
-          if (_hasPriceChanges) ...[
             const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _saving ? null : _submitReview,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+            Row(children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _saving ? null : () => _save(download: true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF3B82F6),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  icon: const Icon(Icons.picture_as_pdf, size: 18),
+                  label: const Text('PDF'),
                 ),
-                icon: const Icon(Icons.send_outlined, size: 18),
-                label: const Text('Отправить на модерацию'),
               ),
-            ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton.icon(
+                  onPressed: _saving ? null : _submitReview,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  icon: _saving
+                      ? const SizedBox(height: 18, width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.send_outlined, size: 18),
+                  label: const Text('Отправить на модерацию'),
+                ),
+              ),
+            ]),
+          ] else ...[
+            Row(children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _saving ? null : () => _save(download: false),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white30),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: _saving
+                      ? const SizedBox(height: 18, width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Сохранить'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _saving ? null : () => _save(download: true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF3B82F6),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  icon: const Icon(Icons.picture_as_pdf, size: 18),
+                  label: const Text('PDF'),
+                ),
+              ),
+            ]),
+
+            if (_hasPriceChanges) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _saving ? null : _submitReview,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  icon: const Icon(Icons.send_outlined, size: 18),
+                  label: const Text('Отправить на модерацию'),
+                ),
+              ),
+            ],
           ],
         ],
       ),

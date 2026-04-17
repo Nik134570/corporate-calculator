@@ -630,6 +630,34 @@ class _CalculationsTabState extends State<_CalculationsTab> {
     }
   }
 
+  void _confirmDelete(BuildContext context, CalculationModel calc) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Удалить расчёт?'),
+        content: Text('«${calc.title}» будет удалён. Работник получит уведомление.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Отмена')),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await getIt<CalculatorRepository>().delete(calc.id);
+                _load();
+              } catch (e) {
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Ошибка: $e'), backgroundColor: Colors.red),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            child: const Text('Удалить'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Color _statusColor(String status) {
     switch (status) {
       case 'DRAFT': return Colors.green;
@@ -694,6 +722,7 @@ class _CalculationsTabState extends State<_CalculationsTab> {
                     });
                     if (mounted) _load();
                   },
+                  onDelete: () => _confirmDelete(context, _calculations[index]),
                 ),
               ),
             ),
@@ -706,12 +735,14 @@ class _AdminCalculationCard extends StatelessWidget {
   final Color Function(String) statusColor;
   final String Function(String) statusText;
   final VoidCallback? onTap;
+  final VoidCallback? onDelete;
 
   const _AdminCalculationCard({
     required this.calculation,
     required this.statusColor,
     required this.statusText,
     this.onTap,
+    this.onDelete,
   });
 
   @override
@@ -731,7 +762,7 @@ class _AdminCalculationCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Заголовок + сумма
+            // Заголовок + сумма + удаление
             Row(
               children: [
                 Expanded(
@@ -741,6 +772,15 @@ class _AdminCalculationCard extends StatelessWidget {
                 Text('${c.totalPrice.toStringAsFixed(2)} ₽',
                     style: const TextStyle(
                         fontWeight: FontWeight.bold, color: Colors.blue, fontSize: 15)),
+                if (onDelete != null) ...[
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: onDelete,
+                  ),
+                ],
               ],
             ),
             const SizedBox(height: 2),
