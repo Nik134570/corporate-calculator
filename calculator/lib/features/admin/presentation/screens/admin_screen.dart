@@ -490,7 +490,21 @@ class _ReviewCard extends StatelessWidget {
               ),
             ],
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => context.push('/calculation-detail', extra: {
+                  'calculation': calc,
+                  'productTemplates': <dynamic>[],
+                  'highlightChanges': true,
+                  'showEditButton': false,
+                }),
+                icon: const Icon(Icons.open_in_new, size: 16),
+                label: const Text('Открыть расчёт'),
+              ),
+            ),
+            const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(

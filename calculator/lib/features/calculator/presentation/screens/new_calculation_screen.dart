@@ -79,7 +79,7 @@ class ProductInput {
 
   Map<String, dynamic> toJson() => {
         'productTemplateId': productTemplateId,
-        'name': name.isEmpty ? (productTemplateName ?? 'Изделие') : name,
+        'name': productTemplateName ?? 'Изделие',
         'width': width,
         'height': height,
         'quantity': quantity,
@@ -706,7 +706,6 @@ class _ProductBlock extends StatefulWidget {
 }
 
 class _ProductBlockState extends State<_ProductBlock> {
-  late TextEditingController _nameCtrl;
   late TextEditingController _widthCtrl;
   late TextEditingController _heightCtrl;
   late TextEditingController _priceCtrl;
@@ -716,7 +715,6 @@ class _ProductBlockState extends State<_ProductBlock> {
   void initState() {
     super.initState();
     final p = widget.product;
-    _nameCtrl = TextEditingController(text: p.name);
     _widthCtrl = TextEditingController(text: p.width == 0 ? '' : p.width.toString());
     _heightCtrl = TextEditingController(text: p.height == 0 ? '' : p.height.toString());
     _priceCtrl = TextEditingController(text: p.pricePerSqm == 0 ? '' : p.pricePerSqm.toString());
@@ -725,7 +723,6 @@ class _ProductBlockState extends State<_ProductBlock> {
 
   @override
   void dispose() {
-    _nameCtrl.dispose();
     _widthCtrl.dispose();
     _heightCtrl.dispose();
     _priceCtrl.dispose();
@@ -734,7 +731,6 @@ class _ProductBlockState extends State<_ProductBlock> {
   }
 
   void _update() {
-    widget.product.name = _nameCtrl.text;
     widget.product.width = double.tryParse(_widthCtrl.text.replaceAll(',', '.')) ?? 0;
     widget.product.height = double.tryParse(_heightCtrl.text.replaceAll(',', '.')) ?? 0;
     widget.product.pricePerSqm = double.tryParse(_priceCtrl.text.replaceAll(',', '.')) ?? 0;
@@ -836,17 +832,6 @@ class _ProductBlockState extends State<_ProductBlock> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TextField(
-                    controller: _nameCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Наименование изделия',
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    onChanged: (_) => _update(),
-                  ),
-                  const SizedBox(height: 12),
-
                   _ProductTemplateSelector(
                     productTemplates: widget.productTemplates,
                     selectedId: p.productTemplateId,

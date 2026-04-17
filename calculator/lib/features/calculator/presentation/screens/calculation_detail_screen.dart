@@ -11,11 +11,15 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 class CalculationDetailScreen extends StatelessWidget {
   final CalculationModel calculation;
   final List<ProductTemplateModel> productTemplates;
+  final bool highlightChanges;
+  final bool showEditButton;
 
   const CalculationDetailScreen({
     super.key,
     required this.calculation,
     required this.productTemplates,
+    this.highlightChanges = false,
+    this.showEditButton = true,
   });
 
   @override
@@ -37,7 +41,7 @@ class CalculationDetailScreen extends StatelessWidget {
           ),
         ],
       ),
-      bottomNavigationBar: Padding(
+      bottomNavigationBar: showEditButton ? Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
         child: ElevatedButton.icon(
           onPressed: () async {
@@ -59,7 +63,7 @@ class CalculationDetailScreen extends StatelessWidget {
           icon: const Icon(Icons.edit_outlined),
           label: const Text('Редактировать', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         ),
-      ),
+      ) : null,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -113,7 +117,7 @@ class CalculationDetailScreen extends StatelessWidget {
             const SizedBox(height: 8),
             ...calculation.products.asMap().entries.map((e) => Padding(
                   padding: const EdgeInsets.only(bottom: 10),
-                  child: _ProductCard(index: e.key, product: e.value),
+                  child: _ProductCard(index: e.key, product: e.value, highlightChanges: highlightChanges),
                 )),
             const SizedBox(height: 4),
 
@@ -226,8 +230,9 @@ class CalculationDetailScreen extends StatelessWidget {
 class _ProductCard extends StatelessWidget {
   final int index;
   final CalcProductModel product;
+  final bool highlightChanges;
 
-  const _ProductCard({required this.index, required this.product});
+  const _ProductCard({required this.index, required this.product, this.highlightChanges = false});
 
   @override
   Widget build(BuildContext context) {
@@ -312,7 +317,14 @@ class _ProductCard extends StatelessWidget {
                         _Stat('Размер', '${product.width.toStringAsFixed(0)} × ${product.height.toStringAsFixed(0)} мм'),
                         _Stat('Площадь', '${product.area.toStringAsFixed(3)} м²'),
                         _Stat('Периметр', '${product.perimeter.toStringAsFixed(2)} м'),
-                        _Stat('₽/м²', product.pricePerSqm.toStringAsFixed(0)),
+                        if (highlightChanges && product.hasPriceChange)
+                          _StatChanged(
+                            '₽/м²',
+                            product.originalPricePerSqm?.toStringAsFixed(0) ?? '—',
+                            product.pricePerSqm.toStringAsFixed(0),
+                          )
+                        else
+                          _Stat('₽/м²', product.pricePerSqm.toStringAsFixed(0)),
                       ],
                     ),
                   ),
@@ -352,8 +364,21 @@ class _ProductCard extends StatelessWidget {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text('• ${p.name}', style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
-                              Text('${p.totalPrice.toStringAsFixed(2)} ₽',
-                                  style: TextStyle(color: Colors.grey.shade700, fontSize: 13)),
+                              if (highlightChanges && p.hasPriceChange)
+                                Row(children: [
+                                  Text('${p.originalPricePerMeter?.toStringAsFixed(0)} ₽/м',
+                                      style: TextStyle(color: Colors.grey.shade400, fontSize: 12, decoration: TextDecoration.lineThrough)),
+                                  const SizedBox(width: 4),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(4)),
+                                    child: Text('${p.pricePerMeter.toStringAsFixed(0)} ₽/м',
+                                        style: TextStyle(color: Colors.orange.shade800, fontSize: 12, fontWeight: FontWeight.bold)),
+                                  ),
+                                ])
+                              else
+                                Text('${p.totalPrice.toStringAsFixed(2)} ₽',
+                                    style: TextStyle(color: Colors.grey.shade700, fontSize: 13)),
                             ],
                           ),
                         )),
@@ -371,8 +396,21 @@ class _ProductCard extends StatelessWidget {
                             children: [
                               Text('• ${p.name} × ${p.quantity}',
                                   style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
-                              Text('${p.totalPrice.toStringAsFixed(2)} ₽',
-                                  style: TextStyle(color: Colors.grey.shade700, fontSize: 13)),
+                              if (highlightChanges && p.hasPriceChange)
+                                Row(children: [
+                                  Text('${p.originalUnitPrice?.toStringAsFixed(0)} ₽/шт',
+                                      style: TextStyle(color: Colors.grey.shade400, fontSize: 12, decoration: TextDecoration.lineThrough)),
+                                  const SizedBox(width: 4),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(4)),
+                                    child: Text('${p.unitPrice.toStringAsFixed(0)} ₽/шт',
+                                        style: TextStyle(color: Colors.orange.shade800, fontSize: 12, fontWeight: FontWeight.bold)),
+                                  ),
+                                ])
+                              else
+                                Text('${p.totalPrice.toStringAsFixed(2)} ₽',
+                                    style: TextStyle(color: Colors.grey.shade700, fontSize: 13)),
                             ],
                           ),
                         )),
@@ -438,6 +476,31 @@ class _Stat extends StatelessWidget {
         Text(label, style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
         const SizedBox(height: 2),
         Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+      ],
+    );
+  }
+}
+
+class _StatChanged extends StatelessWidget {
+  final String label;
+  final String oldValue;
+  final String newValue;
+  const _StatChanged(this.label, this.oldValue, this.newValue);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(label, style: TextStyle(fontSize: 10, color: Colors.orange.shade600)),
+        const SizedBox(height: 2),
+        Text(oldValue,
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade400, decoration: TextDecoration.lineThrough)),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+          decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(4)),
+          child: Text(newValue,
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.orange.shade800)),
+        ),
       ],
     );
   }

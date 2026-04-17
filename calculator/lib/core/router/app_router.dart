@@ -58,7 +58,9 @@ final GoRouter appRouter = GoRouter(
         final extra = state.extra as Map<String, dynamic>;
         return CalculationDetailScreen(
           calculation: extra['calculation'] as CalculationModel,
-          productTemplates: extra['productTemplates'] as List<ProductTemplateModel>,
+          productTemplates: (extra['productTemplates'] as List).cast<ProductTemplateModel>(),
+          highlightChanges: extra['highlightChanges'] as bool? ?? false,
+          showEditButton: extra['showEditButton'] as bool? ?? true,
         );
       },
     ),
