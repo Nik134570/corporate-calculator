@@ -72,35 +72,21 @@ const buildData = (body, autoTitle) => {
   const {
     clientName, clientPhone, clientAddress, comment,
     delivery = 0, lifting = 0, consumables = 0, measurement = 0, installation = 0,
-    discountType = 'none', discountValue = 0,
-    complexityType = 'none', complexityValue = 0,
     hasPriceChanges = false,
     products = [],
   } = body
 
+  // totalPrice уже включает скидку/сложность каждого изделия
   const productsTotal = products.reduce((sum, p) => sum + Number(p.totalPrice) * Number(p.quantity || 1), 0)
   const servicesTotal = Number(delivery) + Number(lifting) + Number(consumables) + Number(measurement) + Number(installation)
-  let subtotal = productsTotal + servicesTotal
-
-  let complexityAmount = 0
-  if (complexityType === 'percent') complexityAmount = subtotal * Number(complexityValue) / 100
-  else if (complexityType === 'fixed') complexityAmount = Number(complexityValue)
-  subtotal += complexityAmount
-
-  let discountAmount = 0
-  if (discountType === 'percent') discountAmount = subtotal * Number(discountValue) / 100
-  else if (discountType === 'fixed') discountAmount = Number(discountValue)
-  const totalPrice = Math.max(0, subtotal - discountAmount)
+  const totalPrice = Math.max(0, productsTotal + servicesTotal)
 
   const status = hasPriceChanges ? 'PENDING' : 'DRAFT'
-
-  const isDraft = !clientName || products.length === 0 ||
-    products.every(p => !p.width || !p.height)
+  const isDraft = !clientName || products.length === 0 || products.every(p => !p.width || !p.height)
 
   return {
     title: autoTitle || 'Заказ', clientName, clientPhone, clientAddress, comment,
     delivery, lifting, consumables, measurement, installation,
-    discountType, discountValue, complexityType, complexityValue,
     hasPriceChanges, status, totalPrice, isDraft,
   }
 }
@@ -116,6 +102,10 @@ const buildProducts = (products) => products.map((p, idx) => ({
   originalPricePerSqm: p.originalPricePerSqm || null,
   area: p.area,
   totalPrice: p.totalPrice,
+  discountType: p.discountType || 'none',
+  discountValue: p.discountValue || 0,
+  complexityType: p.complexityType || 'none',
+  complexityValue: p.complexityValue || 0,
   sortOrder: idx,
   processings: {
     create: (p.processings || []).map(proc => ({

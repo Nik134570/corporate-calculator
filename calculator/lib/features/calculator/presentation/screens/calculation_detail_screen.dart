@@ -167,24 +167,6 @@ class CalculationDetailScreen extends StatelessWidget {
                   _TotalRow('Сумма по изделиям', calculation.productsTotal),
                   const SizedBox(height: 6),
                   _TotalRow('Доп. услуги', calculation.servicesTotal),
-                  if (calculation.complexityType != 'none' && calculation.complexityValue > 0) ...[
-                    const SizedBox(height: 6),
-                    _TotalRow(
-                      'Коэф. сложности${calculation.complexityType == 'percent' ? ' (${calculation.complexityValue.toStringAsFixed(0)}%)' : ''}',
-                      calculation.complexityType == 'percent'
-                          ? (calculation.productsTotal + calculation.servicesTotal) * calculation.complexityValue / 100
-                          : calculation.complexityValue,
-                      isPositive: true,
-                    ),
-                  ],
-                  if (calculation.discountType != 'none' && calculation.discountValue > 0) ...[
-                    const SizedBox(height: 6),
-                    _TotalRow(
-                      'Скидка${calculation.discountType == 'percent' ? ' (${calculation.discountValue.toStringAsFixed(0)}%)' : ''}',
-                      calculation.discountValue,
-                      isDiscount: true,
-                    ),
-                  ],
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 12),
                     child: Divider(color: Colors.white24),
@@ -414,6 +396,28 @@ class _ProductCard extends StatelessWidget {
                             ],
                           ),
                         )),
+                  ],
+
+                  // Коэффициент сложности и скидка
+                  if (product.complexityType != 'none' && product.complexityValue > 0) ...[
+                    const SizedBox(height: 6),
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      Text(
+                        'Коэф. сложности${product.complexityType == 'percent' ? ' (${product.complexityValue.toStringAsFixed(0)}%)' : ' (${product.complexityValue.toStringAsFixed(0)} ₽)'}',
+                        style: TextStyle(color: Colors.green.shade700, fontSize: 12),
+                      ),
+                      Text('включён в цену', style: TextStyle(color: Colors.grey.shade400, fontSize: 11)),
+                    ]),
+                  ],
+                  if (product.discountType != 'none' && product.discountValue > 0) ...[
+                    const SizedBox(height: 4),
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      Text(
+                        'Скидка${product.discountType == 'percent' ? ' (${product.discountValue.toStringAsFixed(0)}%)' : ' (${product.discountValue.toStringAsFixed(0)} ₽)'}',
+                        style: TextStyle(color: Colors.red.shade600, fontSize: 12),
+                      ),
+                      Text('включена в цену', style: TextStyle(color: Colors.grey.shade400, fontSize: 11)),
+                    ]),
                   ],
                 ],
               ),

@@ -20,6 +20,10 @@ function format(t) {
     thickness: t.thickness,
     unitPrice: t.unitPrice,
     allowTempered: t.allowTempered,
+    discountType: t.discountType,
+    discountValue: t.discountValue,
+    complexityType: t.complexityType,
+    complexityValue: t.complexityValue,
     isActive: t.isActive,
     allowedProcessingIds: (t.allowedProcessings || []).map(x => x.processingId),
     allowedPieceWorkIds: (t.allowedPieceWorks || []).map(x => x.pieceWorkId),
@@ -41,13 +45,15 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
-    const { materialId, thickness, unitPrice, allowTempered, processingIds, pieceWorkIds } = req.body
-    const existing = await prisma.productTemplate.findFirst({ where: { materialId, thickness, isActive: true } })
-    if (existing) return res.status(409).json({ success: false, message: 'Шаблон изделия с таким материалом и толщиной уже существует' })
+    const { materialId, thickness, unitPrice, allowTempered, discountType, discountValue, complexityType, complexityValue, processingIds, pieceWorkIds } = req.body
     const item = await prisma.productTemplate.create({
       data: {
         materialId, thickness, unitPrice,
         allowTempered: allowTempered ?? false,
+        discountType: discountType || 'none',
+        discountValue: discountValue || 0,
+        complexityType: complexityType || 'none',
+        complexityValue: complexityValue || 0,
         allowedProcessings: processingIds?.length
           ? { create: processingIds.map(id => ({ processingId: id })) } : undefined,
         allowedPieceWorks: pieceWorkIds?.length
@@ -56,24 +62,24 @@ router.post('/', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => {
       include: includeRelations,
     })
     res.status(201).json({ success: true, data: format(item) })
-  } catch (err) { next(err) }
+  } catch (err) {
+    if (err.code === 'P2002') return res.status(409).json({ success: false, message: 'Шаблон изделия с таким материалом и толщиной уже существует' })
+    next(err)
+  }
 })
 
 router.patch('/:id', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
-    const { materialId, thickness, unitPrice, allowTempered, isActive, processingIds, pieceWorkIds } = req.body
+    const { materialId, thickness, unitPrice, allowTempered, discountType, discountValue, complexityType, complexityValue, isActive, processingIds, pieceWorkIds } = req.body
     const data = {}
-    if (materialId !== undefined || thickness !== undefined) {
-      const current = await prisma.productTemplate.findUnique({ where: { id: req.params.id } })
-      const newMaterialId = materialId ?? current.materialId
-      const newThickness = thickness ?? current.thickness
-      const existing = await prisma.productTemplate.findFirst({ where: { materialId: newMaterialId, thickness: newThickness, isActive: true, NOT: { id: req.params.id } } })
-      if (existing) return res.status(409).json({ success: false, message: 'Шаблон изделия с таким материалом и толщиной уже существует' })
-    }
     if (materialId !== undefined) data.materialId = materialId
     if (thickness !== undefined) data.thickness = thickness
     if (unitPrice !== undefined) data.unitPrice = unitPrice
     if (allowTempered !== undefined) data.allowTempered = allowTempered
+    if (discountType !== undefined) data.discountType = discountType
+    if (discountValue !== undefined) data.discountValue = discountValue
+    if (complexityType !== undefined) data.complexityType = complexityType
+    if (complexityValue !== undefined) data.complexityValue = complexityValue
     if (isActive !== undefined) data.isActive = isActive
     if (processingIds !== undefined) {
       data.allowedProcessings = { deleteMany: {}, create: processingIds.map(id => ({ processingId: id })) }
@@ -83,7 +89,10 @@ router.patch('/:id', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => 
     }
     const item = await prisma.productTemplate.update({ where: { id: req.params.id }, data, include: includeRelations })
     res.json({ success: true, data: format(item) })
-  } catch (err) { next(err) }
+  } catch (err) {
+    if (err.code === 'P2002') return res.status(409).json({ success: false, message: 'Шаблон изделия с таким материалом и толщиной уже существует' })
+    next(err)
+  }
 })
 
 router.delete('/:id', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => {

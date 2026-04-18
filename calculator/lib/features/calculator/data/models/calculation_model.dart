@@ -11,10 +11,6 @@ class CalculationModel {
   final double consumables;
   final double measurement;
   final double installation;
-  final String discountType;
-  final double discountValue;
-  final String complexityType;
-  final double complexityValue;
   final String status; // DRAFT, PENDING, IN_REVIEW, APPROVED, REJECTED
   final bool hasPriceChanges;
   final DateTime createdAt;
@@ -36,10 +32,6 @@ class CalculationModel {
     this.consumables = 0,
     this.measurement = 0,
     this.installation = 0,
-    this.discountType = 'none',
-    this.discountValue = 0,
-    this.complexityType = 'none',
-    this.complexityValue = 0,
     this.status = 'DRAFT',
     this.hasPriceChanges = false,
     required this.createdAt,
@@ -70,10 +62,6 @@ class CalculationModel {
       consumables: double.parse((json['consumables'] ?? 0).toString()),
       measurement: double.parse((json['measurement'] ?? 0).toString()),
       installation: double.parse((json['installation'] ?? 0).toString()),
-      discountType: json['discountType'] ?? 'none',
-      discountValue: double.parse((json['discountValue'] ?? 0).toString()),
-      complexityType: json['complexityType'] ?? 'none',
-      complexityValue: double.parse((json['complexityValue'] ?? 0).toString()),
       status: json['status'] ?? 'DRAFT',
       hasPriceChanges: json['hasPriceChanges'] ?? false,
       createdAt: DateTime.parse(json['createdAt']),
@@ -139,6 +127,10 @@ class CalcProductModel {
   final double? originalPricePerSqm;
   final double area;
   final double totalPrice;
+  final String discountType;
+  final double discountValue;
+  final String complexityType;
+  final double complexityValue;
   final String? materialName;
   final String? productTemplateId;
   final List<CalcProcessingModel> processings;
@@ -155,6 +147,10 @@ class CalcProductModel {
     this.originalPricePerSqm,
     required this.area,
     required this.totalPrice,
+    this.discountType = 'none',
+    this.discountValue = 0,
+    this.complexityType = 'none',
+    this.complexityValue = 0,
     this.materialName,
     this.productTemplateId,
     required this.processings,
@@ -179,6 +175,10 @@ class CalcProductModel {
           : null,
       area: double.parse(json['area'].toString()),
       totalPrice: double.parse(json['totalPrice'].toString()),
+      discountType: json['discountType'] ?? 'none',
+      discountValue: double.parse((json['discountValue'] ?? 0).toString()),
+      complexityType: json['complexityType'] ?? 'none',
+      complexityValue: double.parse((json['complexityValue'] ?? 0).toString()),
       materialName: json['productTemplate']?['material']?['name'],
       productTemplateId: json['productTemplateId'],
       processings: (json['processings'] as List? ?? [])

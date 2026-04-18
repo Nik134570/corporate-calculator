@@ -38,6 +38,10 @@ class ProductInput {
   List<ProcessingInput> processings;
   List<PieceWorkInput> pieceWorks;
   double temperedPrice;
+  String discountType;
+  double discountValue;
+  String complexityType;
+  double complexityValue;
 
   ProductInput({
     this.name = '',
@@ -52,6 +56,10 @@ class ProductInput {
     List<ProcessingInput>? processings,
     List<PieceWorkInput>? pieceWorks,
     this.temperedPrice = 100,
+    this.discountType = 'none',
+    this.discountValue = 0,
+    this.complexityType = 'none',
+    this.complexityValue = 0,
   })  : processings = processings ?? [],
         pieceWorks = pieceWorks ?? [];
 
@@ -62,8 +70,20 @@ class ProductInput {
       processings.fold(0, (s, p) => s + perimeter * p.pricePerMeter);
   double get pieceWorksTotal =>
       pieceWorks.fold(0, (s, p) => s + p.quantity * p.unitPrice);
-  double get unitTotal =>
+  double get unitBaseTotal =>
       baseTotal + processingsTotal + pieceWorksTotal + (isTempered ? temperedPrice : 0);
+  double get complexityAmount {
+    if (complexityType == 'percent') return unitBaseTotal * complexityValue / 100;
+    if (complexityType == 'fixed') return complexityValue;
+    return 0;
+  }
+  double get discountAmount {
+    final base = unitBaseTotal + complexityAmount;
+    if (discountType == 'percent') return base * discountValue / 100;
+    if (discountType == 'fixed') return discountValue;
+    return 0;
+  }
+  double get unitTotal => (unitBaseTotal + complexityAmount - discountAmount).clamp(0, double.infinity);
   double get total => unitTotal * quantity;
 
   bool get hasPriceChanges {
@@ -88,6 +108,10 @@ class ProductInput {
         'originalPricePerSqm': originalPricePerSqm,
         'area': area,
         'totalPrice': unitTotal,
+        'discountType': discountType,
+        'discountValue': discountValue,
+        'complexityType': complexityType,
+        'complexityValue': complexityValue,
         'processings': processings.map((p) => {
               'name': p.name,
               'pricePerMeter': p.pricePerMeter,
@@ -114,6 +138,10 @@ class ProductInput {
         pricePerSqm: m.pricePerSqm,
         originalPricePerSqm: m.originalPricePerSqm,
         temperedPrice: temperedPrice,
+        discountType: m.discountType,
+        discountValue: m.discountValue,
+        complexityType: m.complexityType,
+        complexityValue: m.complexityValue,
         processings: m.processings
             .map((p) => ProcessingInput(
                   name: p.name,
@@ -161,11 +189,7 @@ class _NewCalculationScreenState extends State<NewCalculationScreen> {
   late TextEditingController _measurementController;
   late TextEditingController _installationController;
   late TextEditingController _reviewCommentController;
-  late TextEditingController _discountValueController;
-  late TextEditingController _complexityValueController;
 
-  String _discountType = 'none';
-  String _complexityType = 'none';
   final List<ProductInput> _products = [];
   bool _saving = false;
   double _temperedPrice = 100;
@@ -197,12 +221,6 @@ class _NewCalculationScreenState extends State<NewCalculationScreen> {
     _measurementController = TextEditingController(text: (e?.measurement ?? 0).toString());
     _installationController = TextEditingController(text: (e?.installation ?? 0).toString());
     _reviewCommentController = TextEditingController();
-    _discountType = e?.discountType ?? 'none';
-    _discountValueController = TextEditingController(
-        text: (e?.discountValue ?? 0) > 0 ? e!.discountValue.toString() : '');
-    _complexityType = e?.complexityType ?? 'none';
-    _complexityValueController = TextEditingController(
-        text: (e?.complexityValue ?? 0) > 0 ? e!.complexityValue.toString() : '');
 
     if (e != null) {
       _products.addAll(e.products.map(ProductInput.fromModel));
@@ -215,7 +233,6 @@ class _NewCalculationScreenState extends State<NewCalculationScreen> {
     for (final c in [
       _deliveryController, _liftingController, _consumablesController,
       _measurementController, _installationController,
-      _discountValueController, _complexityValueController,
     ]) {
       c.addListener(() => setState(() {}));
     }
@@ -227,8 +244,7 @@ class _NewCalculationScreenState extends State<NewCalculationScreen> {
       _clientNameController, _clientPhoneController,
       _clientAddressController, _commentController, _deliveryController,
       _liftingController, _consumablesController, _measurementController,
-      _installationController, _discountValueController, _complexityValueController,
-      _reviewCommentController,
+      _installationController, _reviewCommentController,
     ]) {
       c.dispose();
     }
@@ -264,25 +280,7 @@ class _NewCalculationScreenState extends State<NewCalculationScreen> {
       _parseD(_consumablesController) + _parseD(_measurementController) +
       _parseD(_installationController);
 
-  double get _complexityAmount {
-    final base = _productsTotal + _servicesTotal;
-    final val = _parseD(_complexityValueController);
-    if (_complexityType == 'percent') return base * val / 100;
-    if (_complexityType == 'fixed') return val;
-    return 0;
-  }
-
-  double get _discountAmount {
-    final base = _productsTotal + _servicesTotal + _complexityAmount;
-    final val = _parseD(_discountValueController);
-    if (_discountType == 'percent') return base * val / 100;
-    if (_discountType == 'fixed') return val;
-    return 0;
-  }
-
-  double get _grandTotal =>
-      (_productsTotal + _servicesTotal + _complexityAmount - _discountAmount)
-          .clamp(0, double.infinity);
+  double get _grandTotal => _productsTotal + _servicesTotal;
 
   Map<String, dynamic> _buildRequestData() => {
         'clientName': _clientNameController.text,
@@ -294,10 +292,6 @@ class _NewCalculationScreenState extends State<NewCalculationScreen> {
         'consumables': _parseD(_consumablesController),
         'measurement': _parseD(_measurementController),
         'installation': _parseD(_installationController),
-        'discountType': _discountType,
-        'discountValue': _parseD(_discountValueController),
-        'complexityType': _complexityType,
-        'complexityValue': _parseD(_complexityValueController),
         'hasPriceChanges': _hasPriceChanges,
         'products': _products.map((p) => p.toJson()).toList(),
         'isDraft': _isDraft,
@@ -446,53 +440,6 @@ class _NewCalculationScreenState extends State<NewCalculationScreen> {
           _TotalRow('Сумма по изделиям', _productsTotal),
           const SizedBox(height: 8),
           _TotalRow('Дополнительные услуги', _servicesTotal),
-
-          // Коэффициент сложности
-          const SizedBox(height: 16),
-          const Text('Коэффициент сложности',
-              style: TextStyle(color: Colors.white70, fontSize: 13)),
-          const SizedBox(height: 8),
-          Row(children: [
-            _TypeBtn('Нет', 'none', _complexityType,
-                (v) => setState(() { _complexityType = v; _complexityValueController.clear(); })),
-            const SizedBox(width: 8),
-            _TypeBtn('%', 'percent', _complexityType, (v) => setState(() => _complexityType = v)),
-            const SizedBox(width: 8),
-            _TypeBtn('₽', 'fixed', _complexityType, (v) => setState(() => _complexityType = v)),
-            if (_complexityType != 'none') ...[
-              const SizedBox(width: 12),
-              Expanded(child: _NumField(controller: _complexityValueController,
-                  suffix: _complexityType == 'percent' ? '%' : '₽', light: true)),
-              if (_complexityAmount > 0) ...[
-                const SizedBox(width: 8),
-                Text('+${_complexityAmount.toStringAsFixed(2)} ₽',
-                    style: const TextStyle(color: Colors.greenAccent, fontSize: 13)),
-              ],
-            ],
-          ]),
-
-          // Скидка
-          const SizedBox(height: 16),
-          const Text('Скидка', style: TextStyle(color: Colors.white70, fontSize: 13)),
-          const SizedBox(height: 8),
-          Row(children: [
-            _TypeBtn('Нет', 'none', _discountType,
-                (v) => setState(() { _discountType = v; _discountValueController.clear(); })),
-            const SizedBox(width: 8),
-            _TypeBtn('%', 'percent', _discountType, (v) => setState(() => _discountType = v)),
-            const SizedBox(width: 8),
-            _TypeBtn('₽', 'fixed', _discountType, (v) => setState(() => _discountType = v)),
-            if (_discountType != 'none') ...[
-              const SizedBox(width: 12),
-              Expanded(child: _NumField(controller: _discountValueController,
-                  suffix: _discountType == 'percent' ? '%' : '₽', light: true)),
-              if (_discountAmount > 0) ...[
-                const SizedBox(width: 8),
-                Text('-${_discountAmount.toStringAsFixed(2)} ₽',
-                    style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
-              ],
-            ],
-          ]),
 
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 16),
@@ -768,6 +715,8 @@ class _ProductBlockState extends State<_ProductBlock> {
   late TextEditingController _heightCtrl;
   late TextEditingController _priceCtrl;
   late TextEditingController _quantityCtrl;
+  late TextEditingController _complexityValueCtrl;
+  late TextEditingController _discountValueCtrl;
 
   @override
   void initState() {
@@ -777,6 +726,8 @@ class _ProductBlockState extends State<_ProductBlock> {
     _heightCtrl = TextEditingController(text: p.height == 0 ? '' : p.height.toString());
     _priceCtrl = TextEditingController(text: p.pricePerSqm == 0 ? '' : p.pricePerSqm.toString());
     _quantityCtrl = TextEditingController(text: p.quantity.toString());
+    _complexityValueCtrl = TextEditingController(text: p.complexityValue > 0 ? p.complexityValue.toString() : '');
+    _discountValueCtrl = TextEditingController(text: p.discountValue > 0 ? p.discountValue.toString() : '');
   }
 
   @override
@@ -785,6 +736,8 @@ class _ProductBlockState extends State<_ProductBlock> {
     _heightCtrl.dispose();
     _priceCtrl.dispose();
     _quantityCtrl.dispose();
+    _complexityValueCtrl.dispose();
+    _discountValueCtrl.dispose();
     super.dispose();
   }
 
@@ -894,18 +847,26 @@ class _ProductBlockState extends State<_ProductBlock> {
                     productTemplates: widget.productTemplates,
                     selectedId: p.productTemplateId,
                     currentPrice: p.pricePerSqm,
-                    onSelected: (id, name, price, originalPrice) {
-                      final newTmpl = id == null
-                          ? null
-                          : widget.productTemplates.where((t) => t.id == id).firstOrNull;
+                    onSelected: (id, name, price, originalPrice, tmpl) {
                       setState(() {
                         p.productTemplateId = id;
                         p.productTemplateName = name;
                         p.pricePerSqm = price;
                         p.originalPricePerSqm = originalPrice;
                         _priceCtrl.text = price > 0 ? price.toString() : '';
-                        if (newTmpl != null && !newTmpl.allowTempered) {
-                          p.isTempered = false;
+                        if (tmpl != null) {
+                          if (!tmpl.allowTempered) p.isTempered = false;
+                          p.discountType = tmpl.discountType;
+                          p.discountValue = tmpl.discountValue;
+                          p.complexityType = tmpl.complexityType;
+                          p.complexityValue = tmpl.complexityValue;
+                          _complexityValueCtrl.text = tmpl.complexityValue > 0 ? tmpl.complexityValue.toString() : '';
+                          _discountValueCtrl.text = tmpl.discountValue > 0 ? tmpl.discountValue.toString() : '';
+                        } else {
+                          p.discountType = 'none'; p.discountValue = 0;
+                          p.complexityType = 'none'; p.complexityValue = 0;
+                          _complexityValueCtrl.clear();
+                          _discountValueCtrl.clear();
                         }
                       });
                       widget.onChanged();
@@ -1045,11 +1006,125 @@ class _ProductBlockState extends State<_ProductBlock> {
                     templates: _allowedPieceWorks,
                     onChanged: () { setState(() {}); widget.onChanged(); },
                   ),
+
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 8),
+
+                  _buildDiscountComplexitySection(p),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDiscountComplexitySection(ProductInput p) {
+    double parseVal(TextEditingController c) =>
+        double.tryParse(c.text.replaceAll(',', '.')) ?? 0;
+
+    void update() { setState(() {}); widget.onChanged(); }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(Icons.tune, size: 16, color: Colors.grey.shade600),
+            const SizedBox(width: 6),
+            Text('Коэф. сложности и скидка',
+                style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey.shade700, fontSize: 13)),
+          ]),
+          const SizedBox(height: 10),
+
+          // Complexity
+          Text('Коэф. сложности', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          const SizedBox(height: 6),
+          Row(children: [
+            _SmallTypeBtn('Нет', 'none', p.complexityType, (v) {
+              setState(() { p.complexityType = v; p.complexityValue = 0; _complexityValueCtrl.clear(); });
+              widget.onChanged();
+            }),
+            const SizedBox(width: 6),
+            _SmallTypeBtn('%', 'percent', p.complexityType, (v) {
+              setState(() { p.complexityType = v; p.complexityValue = parseVal(_complexityValueCtrl); });
+              widget.onChanged();
+            }),
+            const SizedBox(width: 6),
+            _SmallTypeBtn('₽', 'fixed', p.complexityType, (v) {
+              setState(() { p.complexityType = v; p.complexityValue = parseVal(_complexityValueCtrl); });
+              widget.onChanged();
+            }),
+            if (p.complexityType != 'none') ...[
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 90,
+                child: _NumField(
+                  controller: _complexityValueCtrl,
+                  suffix: p.complexityType == 'percent' ? '%' : '₽',
+                  onChanged: (v) {
+                    p.complexityValue = double.tryParse(v.replaceAll(',', '.')) ?? 0;
+                    update();
+                  },
+                ),
+              ),
+              if (p.complexityAmount > 0) ...[
+                const SizedBox(width: 6),
+                Text('+${p.complexityAmount.toStringAsFixed(2)} ₽',
+                    style: const TextStyle(color: Colors.green, fontSize: 12)),
+              ],
+            ],
+          ]),
+
+          const SizedBox(height: 10),
+
+          // Discount
+          Text('Скидка', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          const SizedBox(height: 6),
+          Row(children: [
+            _SmallTypeBtn('Нет', 'none', p.discountType, (v) {
+              setState(() { p.discountType = v; p.discountValue = 0; _discountValueCtrl.clear(); });
+              widget.onChanged();
+            }),
+            const SizedBox(width: 6),
+            _SmallTypeBtn('%', 'percent', p.discountType, (v) {
+              setState(() { p.discountType = v; p.discountValue = parseVal(_discountValueCtrl); });
+              widget.onChanged();
+            }),
+            const SizedBox(width: 6),
+            _SmallTypeBtn('₽', 'fixed', p.discountType, (v) {
+              setState(() { p.discountType = v; p.discountValue = parseVal(_discountValueCtrl); });
+              widget.onChanged();
+            }),
+            if (p.discountType != 'none') ...[
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 90,
+                child: _NumField(
+                  controller: _discountValueCtrl,
+                  suffix: p.discountType == 'percent' ? '%' : '₽',
+                  onChanged: (v) {
+                    p.discountValue = double.tryParse(v.replaceAll(',', '.')) ?? 0;
+                    update();
+                  },
+                ),
+              ),
+              if (p.discountAmount > 0) ...[
+                const SizedBox(width: 6),
+                Text('-${p.discountAmount.toStringAsFixed(2)} ₽',
+                    style: const TextStyle(color: Colors.red, fontSize: 12)),
+              ],
+            ],
+          ]),
+        ],
       ),
     );
   }
@@ -1061,7 +1136,7 @@ class _ProductTemplateSelector extends StatelessWidget {
   final List<ProductTemplateModel> productTemplates;
   final String? selectedId;
   final double currentPrice;
-  final Function(String? id, String? name, double price, double? originalPrice) onSelected;
+  final Function(String? id, String? name, double price, double? originalPrice, ProductTemplateModel? tmpl) onSelected;
 
   const _ProductTemplateSelector({
     required this.productTemplates,
@@ -1134,7 +1209,7 @@ class _ProductTemplateSelector extends StatelessWidget {
                     dense: true,
                     title: const Text('Без наименования'),
                     leading: const Icon(Icons.close, size: 20),
-                    onTap: () { onSelected(null, null, 0, null); Navigator.pop(ctx); },
+                    onTap: () { onSelected(null, null, 0, null, null); Navigator.pop(ctx); },
                   ),
                   ...groups.entries.map((entry) => Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1153,7 +1228,7 @@ class _ProductTemplateSelector extends StatelessWidget {
                                 ? const Icon(Icons.check, color: Colors.blue)
                                 : null,
                             onTap: () {
-                              onSelected(t.id, t.displayName, t.unitPrice, t.unitPrice);
+                              onSelected(t.id, t.displayName, t.unitPrice, t.unitPrice, t);
                               Navigator.pop(ctx);
                             },
                           )),
@@ -1527,6 +1602,34 @@ class _PieceWorksSectionState extends State<_PieceWorksSection> {
 }
 
 // --- Вспомогательные виджеты ---
+
+class _SmallTypeBtn extends StatelessWidget {
+  final String label;
+  final String value;
+  final String current;
+  final Function(String) onTap;
+  const _SmallTypeBtn(this.label, this.value, this.current, this.onTap);
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = current == value;
+    return GestureDetector(
+      onTap: () => onTap(value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? Colors.blueGrey.shade700 : Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(label,
+            style: TextStyle(
+                color: selected ? Colors.white : Colors.grey.shade700,
+                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                fontSize: 12)),
+      ),
+    );
+  }
+}
 
 class _SectionCard extends StatelessWidget {
   final IconData icon;

@@ -265,8 +265,16 @@ class _ProductTemplatesAdminScreenState extends State<ProductTemplatesAdminScree
   void _showDialog(BuildContext context, Map<String, dynamic>? item) {
     final thicknessCtrl = TextEditingController(text: item?['thickness'] ?? '');
     final priceCtrl = TextEditingController(text: item?['unitPrice']?.toString() ?? '');
+    final complexityValueCtrl = TextEditingController(
+        text: (item?['complexityValue'] != null && double.parse(item!['complexityValue'].toString()) > 0)
+            ? item['complexityValue'].toString() : '');
+    final discountValueCtrl = TextEditingController(
+        text: (item?['discountValue'] != null && double.parse(item!['discountValue'].toString()) > 0)
+            ? item['discountValue'].toString() : '');
     String? selectedMaterialId = item?['materialId'];
     bool allowTempered = item?['allowTempered'] == true;
+    String complexityType = item?['complexityType'] ?? 'none';
+    String discountType = item?['discountType'] ?? 'none';
     final selectedProcessingIds = Set<String>.from(item?['allowedProcessingIds'] ?? []);
     final selectedPieceWorkIds = Set<String>.from(item?['allowedPieceWorkIds'] ?? []);
 
@@ -316,6 +324,74 @@ class _ProductTemplatesAdminScreenState extends State<ProductTemplatesAdminScree
                       isDense: true,
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const Text('Скидка и коэффициент сложности',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text('Задаются как значения по умолчанию при создании расчёта.',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  const SizedBox(height: 10),
+
+                  // Complexity
+                  const Text('Коэф. сложности', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 6),
+                  Row(children: [
+                    _AdminTypeBtn('Нет', 'none', complexityType,
+                        (v) => setDialogState(() { complexityType = v; if (v == 'none') complexityValueCtrl.clear(); })),
+                    const SizedBox(width: 6),
+                    _AdminTypeBtn('%', 'percent', complexityType,
+                        (v) => setDialogState(() => complexityType = v)),
+                    const SizedBox(width: 6),
+                    _AdminTypeBtn('₽', 'fixed', complexityType,
+                        (v) => setDialogState(() => complexityType = v)),
+                    if (complexityType != 'none') ...[
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: complexityValueCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.,]'))],
+                          decoration: InputDecoration(
+                            suffixText: complexityType == 'percent' ? '%' : '₽',
+                            border: const OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ]),
+                  const SizedBox(height: 10),
+
+                  // Discount
+                  const Text('Скидка', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 6),
+                  Row(children: [
+                    _AdminTypeBtn('Нет', 'none', discountType,
+                        (v) => setDialogState(() { discountType = v; if (v == 'none') discountValueCtrl.clear(); })),
+                    const SizedBox(width: 6),
+                    _AdminTypeBtn('%', 'percent', discountType,
+                        (v) => setDialogState(() => discountType = v)),
+                    const SizedBox(width: 6),
+                    _AdminTypeBtn('₽', 'fixed', discountType,
+                        (v) => setDialogState(() => discountType = v)),
+                    if (discountType != 'none') ...[
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: discountValueCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.,]'))],
+                          decoration: InputDecoration(
+                            suffixText: discountType == 'percent' ? '%' : '₽',
+                            border: const OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ]),
+
                   const SizedBox(height: 16),
                   const Divider(),
                   const Text('Доступные функции', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -378,6 +454,10 @@ class _ProductTemplatesAdminScreenState extends State<ProductTemplatesAdminScree
                   'thickness': thicknessCtrl.text,
                   'unitPrice': double.tryParse(priceCtrl.text.replaceAll(',', '.')) ?? 0,
                   'allowTempered': allowTempered,
+                  'complexityType': complexityType,
+                  'complexityValue': double.tryParse(complexityValueCtrl.text.replaceAll(',', '.')) ?? 0,
+                  'discountType': discountType,
+                  'discountValue': double.tryParse(discountValueCtrl.text.replaceAll(',', '.')) ?? 0,
                   'processingIds': selectedProcessingIds.toList(),
                   'pieceWorkIds': selectedPieceWorkIds.toList(),
                 };
@@ -756,7 +836,36 @@ class _CatalogWithTemplatesScreen extends StatelessWidget {
   }
 }
 
-// ─── Вспомогательный виджет ───────────────────────────────────────────────────
+// ─── Вспомогательные виджеты ─────────────────────────────────────────────────
+
+class _AdminTypeBtn extends StatelessWidget {
+  final String label;
+  final String value;
+  final String current;
+  final Function(String) onTap;
+  const _AdminTypeBtn(this.label, this.value, this.current, this.onTap);
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = current == value;
+    return GestureDetector(
+      onTap: () => onTap(value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? Colors.blueGrey.shade700 : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: selected ? Colors.blueGrey.shade700 : Colors.grey.shade300),
+        ),
+        child: Text(label,
+            style: TextStyle(
+                color: selected ? Colors.white : Colors.grey.shade700,
+                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                fontSize: 13)),
+      ),
+    );
+  }
+}
 
 class _Chip extends StatelessWidget {
   final String label;

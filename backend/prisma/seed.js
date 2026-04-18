@@ -2,45 +2,44 @@ const { PrismaClient } = require('@prisma/client')
 const bcrypt = require('bcryptjs')
 const prisma = new PrismaClient()
 
+async function upsertByName(model, name, extra = {}) {
+  const existing = await model.findFirst({ where: { name } })
+  if (!existing) return model.create({ data: { name, ...extra } })
+  if (Object.keys(extra).length > 0) {
+    return model.update({ where: { id: existing.id }, data: extra })
+  }
+  return existing
+}
+
 async function main() {
   await prisma.user.upsert({ where: { email: 'admin@test.com' }, update: {}, create: { email: 'admin@test.com', passwordHash: await bcrypt.hash('admin123', 12), fullName: 'Администратор', role: 'ADMIN' } })
   await prisma.user.upsert({ where: { email: 'manager@test.com' }, update: {}, create: { email: 'manager@test.com', passwordHash: await bcrypt.hash('manager123', 12), fullName: 'Руководитель', role: 'MANAGER' } })
   await prisma.user.upsert({ where: { email: 'worker@test.com' }, update: {}, create: { email: 'worker@test.com', passwordHash: await bcrypt.hash('worker123', 12), fullName: 'Рабочий', role: 'WORKER' } })
 
-  // Базовые материалы
-  const matNames = ['Стекло', 'Зеркало', 'Триплекс', 'Закалённое']
-  for (const name of matNames) {
-    await prisma.material.upsert({ where: { id: name }, update: {}, create: { id: name, name } }).catch(async () => {
-      const existing = await prisma.material.findFirst({ where: { name } })
-      if (!existing) await prisma.material.create({ data: { name } })
-    })
+  // Материалы (только название — уникальное по name)
+  for (const name of ['Стекло', 'Зеркало', 'Триплекс', 'Закалённое']) {
+    await prisma.material.upsert({ where: { name }, update: {}, create: { name } })
   }
   const materials = await prisma.material.findMany()
   const mat = (name) => materials.find(m => m.name === name)
 
-  // Обработки
-  await prisma.processingTemplate.createMany({ skipDuplicates: true, data: [
-    { name: 'Шлифовка', pricePerMeter: 150 },
-    { name: 'Фацет', pricePerMeter: 300 },
-    { name: 'Полировка торца', pricePerMeter: 100 },
-  ]})
+  // Обработки (уникальные по name)
+  for (const [name, pricePerMeter] of [['Шлифовка', 150], ['Фацет', 300], ['Полировка торца', 100]]) {
+    await prisma.processingTemplate.upsert({ where: { name }, update: { pricePerMeter }, create: { name, pricePerMeter } })
+  }
 
-  // Штучные работы
-  await prisma.pieceWorkTemplate.createMany({ skipDuplicates: true, data: [
-    { name: 'Отверстие', unitPrice: 150 },
-    { name: 'Вырез', unitPrice: 300 },
-    { name: 'Уголок', unitPrice: 80 },
-  ]})
+  // Штучные работы (уникальные по name)
+  for (const [name, unitPrice] of [['Отверстие', 150], ['Вырез', 300], ['Уголок', 80]]) {
+    await prisma.pieceWorkTemplate.upsert({ where: { name }, update: { unitPrice }, create: { name, unitPrice } })
+  }
 
-  await prisma.serviceTemplate.createMany({ skipDuplicates: true, data: [
-    { name: 'Доставка', defaultPrice: 1500 },
-    { name: 'Подъём', defaultPrice: 500 },
-    { name: 'Расходники', defaultPrice: 200 },
-    { name: 'Замер', defaultPrice: 800 },
-    { name: 'Монтаж', defaultPrice: 2000 },
-  ]})
+  // Услуги
+  for (const [name, defaultPrice] of [['Доставка', 1500], ['Подъём', 500], ['Расходники', 200], ['Замер', 800], ['Монтаж', 2000]]) {
+    const existing = await prisma.serviceTemplate.findFirst({ where: { name } })
+    if (!existing) await prisma.serviceTemplate.create({ data: { name, defaultPrice } })
+  }
 
-  // Наименования изделий (productTemplates)
+  // Наименования изделий
   const steklo = mat('Стекло')
   const zerkalo = mat('Зеркало')
   const triplex = mat('Триплекс')
@@ -64,7 +63,7 @@ async function main() {
     ]
 
     for (const t of templates) {
-      const existing = await prisma.productTemplate.findFirst({ where: { materialId: t.materialId, thickness: t.thickness } })
+      const existing = await prisma.productTemplate.findUnique({ where: { materialId_thickness: { materialId: t.materialId, thickness: t.thickness } } })
       if (!existing) {
         await prisma.productTemplate.create({ data: {
           ...t,
