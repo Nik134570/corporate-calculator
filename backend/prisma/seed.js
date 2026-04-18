@@ -2,13 +2,9 @@ const { PrismaClient } = require('@prisma/client')
 const bcrypt = require('bcryptjs')
 const prisma = new PrismaClient()
 
-async function upsertByName(model, name, extra = {}) {
-  const existing = await model.findFirst({ where: { name } })
-  if (!existing) return model.create({ data: { name, ...extra } })
-  if (Object.keys(extra).length > 0) {
-    return model.update({ where: { id: existing.id }, data: extra })
-  }
-  return existing
+async function findOrCreate(model, where, data) {
+  const existing = await model.findFirst({ where })
+  if (!existing) await model.create({ data })
 }
 
 async function main() {
@@ -16,38 +12,37 @@ async function main() {
   await prisma.user.upsert({ where: { email: 'manager@test.com' }, update: {}, create: { email: 'manager@test.com', passwordHash: await bcrypt.hash('manager123', 12), fullName: 'Руководитель', role: 'MANAGER' } })
   await prisma.user.upsert({ where: { email: 'worker@test.com' }, update: {}, create: { email: 'worker@test.com', passwordHash: await bcrypt.hash('worker123', 12), fullName: 'Рабочий', role: 'WORKER' } })
 
-  // Материалы (только название — уникальное по name)
+  // Материалы (findFirst чтобы не создавать дубли)
   for (const name of ['Стекло', 'Зеркало', 'Триплекс', 'Закалённое']) {
-    await prisma.material.upsert({ where: { name }, update: {}, create: { name } })
+    await findOrCreate(prisma.material, { name }, { name })
   }
-  const materials = await prisma.material.findMany()
+  const materials = await prisma.material.findMany({ where: { isActive: true } })
   const mat = (name) => materials.find(m => m.name === name)
 
-  // Обработки (уникальные по name)
+  // Обработки
   for (const [name, pricePerMeter] of [['Шлифовка', 150], ['Фацет', 300], ['Полировка торца', 100]]) {
-    await prisma.processingTemplate.upsert({ where: { name }, update: { pricePerMeter }, create: { name, pricePerMeter } })
+    await findOrCreate(prisma.processingTemplate, { name }, { name, pricePerMeter })
   }
 
-  // Штучные работы (уникальные по name)
+  // Штучные работы
   for (const [name, unitPrice] of [['Отверстие', 150], ['Вырез', 300], ['Уголок', 80]]) {
-    await prisma.pieceWorkTemplate.upsert({ where: { name }, update: { unitPrice }, create: { name, unitPrice } })
+    await findOrCreate(prisma.pieceWorkTemplate, { name }, { name, unitPrice })
   }
 
   // Услуги
   for (const [name, defaultPrice] of [['Доставка', 1500], ['Подъём', 500], ['Расходники', 200], ['Замер', 800], ['Монтаж', 2000]]) {
-    const existing = await prisma.serviceTemplate.findFirst({ where: { name } })
-    if (!existing) await prisma.serviceTemplate.create({ data: { name, defaultPrice } })
+    await findOrCreate(prisma.serviceTemplate, { name }, { name, defaultPrice })
   }
 
-  // Наименования изделий
+  // Наименования изделий (ProductTemplate)
   const steklo = mat('Стекло')
   const zerkalo = mat('Зеркало')
   const triplex = mat('Триплекс')
   const zakalnoe = mat('Закалённое')
 
   if (steklo && zerkalo && triplex && zakalnoe) {
-    const proc = await prisma.processingTemplate.findMany()
-    const pw = await prisma.pieceWorkTemplate.findMany()
+    const proc = await prisma.processingTemplate.findMany({ where: { isActive: true } })
+    const pw = await prisma.pieceWorkTemplate.findMany({ where: { isActive: true } })
     const allProcIds = proc.map(p => ({ processingId: p.id }))
     const allPwIds = pw.map(p => ({ pieceWorkId: p.id }))
 
@@ -63,7 +58,10 @@ async function main() {
     ]
 
     for (const t of templates) {
-      const existing = await prisma.productTemplate.findUnique({ where: { materialId_thickness: { materialId: t.materialId, thickness: t.thickness } } })
+      // Используем findFirst (без unique index на materialId+thickness для старых БД)
+      const existing = await prisma.productTemplate.findFirst({
+        where: { materialId: t.materialId, thickness: t.thickness }
+      })
       if (!existing) {
         await prisma.productTemplate.create({ data: {
           ...t,
@@ -75,7 +73,11 @@ async function main() {
     }
   }
 
-  await prisma.appSettings.upsert({ where: { id: '00000000-0000-0000-0000-000000000001' }, update: {}, create: { id: '00000000-0000-0000-0000-000000000001', temperedPrice: 100 } })
+  await prisma.appSettings.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000001' },
+    update: {},
+    create: { id: '00000000-0000-0000-0000-000000000001', temperedPrice: 100 }
+  })
   console.log('Seed completed')
 }
 
