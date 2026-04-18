@@ -161,6 +161,7 @@ class _ProductTemplatesAdminScreenState extends State<ProductTemplatesAdminScree
   List<Map<String, dynamic>> _materials = [];
   List<Map<String, dynamic>> _processings = [];
   List<Map<String, dynamic>> _pieceWorks = [];
+  List<Map<String, dynamic>> _discounts = [];
   bool _loading = true;
 
   @override
@@ -176,12 +177,14 @@ class _ProductTemplatesAdminScreenState extends State<ProductTemplatesAdminScree
         getIt<ApiClient>().dio.get('/materials'),
         getIt<ApiClient>().dio.get('/catalog/processings'),
         getIt<ApiClient>().dio.get('/catalog/piece-works'),
+        getIt<ApiClient>().dio.get('/catalog/discounts'),
       ]);
       setState(() {
         _templates = List<Map<String, dynamic>>.from(results[0].data['data']);
         _materials = List<Map<String, dynamic>>.from(results[1].data['data']);
         _processings = List<Map<String, dynamic>>.from(results[2].data['data']);
         _pieceWorks = List<Map<String, dynamic>>.from(results[3].data['data']);
+        _discounts = List<Map<String, dynamic>>.from(results[4].data['data']);
         _loading = false;
       });
     } catch (e) {
@@ -268,15 +271,12 @@ class _ProductTemplatesAdminScreenState extends State<ProductTemplatesAdminScree
     final complexityValueCtrl = TextEditingController(
         text: (item?['complexityValue'] != null && double.parse(item!['complexityValue'].toString()) > 0)
             ? item['complexityValue'].toString() : '');
-    final discountValueCtrl = TextEditingController(
-        text: (item?['discountValue'] != null && double.parse(item!['discountValue'].toString()) > 0)
-            ? item['discountValue'].toString() : '');
     String? selectedMaterialId = item?['materialId'];
     bool allowTempered = item?['allowTempered'] == true;
     String complexityType = item?['complexityType'] ?? 'none';
-    String discountType = item?['discountType'] ?? 'none';
     final selectedProcessingIds = Set<String>.from(item?['allowedProcessingIds'] ?? []);
     final selectedPieceWorkIds = Set<String>.from(item?['allowedPieceWorkIds'] ?? []);
+    final selectedDiscountIds = Set<String>.from(item?['allowedDiscountIds'] ?? []);
 
     showDialog(
       context: context,
@@ -326,16 +326,9 @@ class _ProductTemplatesAdminScreenState extends State<ProductTemplatesAdminScree
                   ),
                   const SizedBox(height: 16),
                   const Divider(),
-                  const Text('Скидка и коэффициент сложности',
+                  const Text('Коэффициент сложности',
                       style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text('Задаются как значения по умолчанию при создании расчёта.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
                   const SizedBox(height: 10),
-
-                  // Complexity
-                  const Text('Коэф. сложности', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 6),
                   Row(children: [
                     _AdminTypeBtn('Нет', 'none', complexityType,
                         (v) => setDialogState(() { complexityType = v; if (v == 'none') complexityValueCtrl.clear(); })),
@@ -354,36 +347,6 @@ class _ProductTemplatesAdminScreenState extends State<ProductTemplatesAdminScree
                           inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.,]'))],
                           decoration: InputDecoration(
                             suffixText: complexityType == 'percent' ? '%' : '₽',
-                            border: const OutlineInputBorder(),
-                            isDense: true,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ]),
-                  const SizedBox(height: 10),
-
-                  // Discount
-                  const Text('Скидка', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 6),
-                  Row(children: [
-                    _AdminTypeBtn('Нет', 'none', discountType,
-                        (v) => setDialogState(() { discountType = v; if (v == 'none') discountValueCtrl.clear(); })),
-                    const SizedBox(width: 6),
-                    _AdminTypeBtn('%', 'percent', discountType,
-                        (v) => setDialogState(() => discountType = v)),
-                    const SizedBox(width: 6),
-                    _AdminTypeBtn('₽', 'fixed', discountType,
-                        (v) => setDialogState(() => discountType = v)),
-                    if (discountType != 'none') ...[
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: discountValueCtrl,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.,]'))],
-                          decoration: InputDecoration(
-                            suffixText: discountType == 'percent' ? '%' : '₽',
                             border: const OutlineInputBorder(),
                             isDense: true,
                           ),
@@ -429,15 +392,31 @@ class _ProductTemplatesAdminScreenState extends State<ProductTemplatesAdminScree
                           subtitle: Text('${p['unitPrice']} ₽/шт'),
                           value: selectedPieceWorkIds.contains(p['id']),
                           onChanged: (v) => setDialogState(() {
-                            if (v == true) {
-                              selectedPieceWorkIds.add(p['id']);
-                            } else {
-                              selectedPieceWorkIds.remove(p['id']);
-                            }
+                            if (v == true) selectedPieceWorkIds.add(p['id']);
+                            else selectedPieceWorkIds.remove(p['id']);
                           }),
                           dense: true,
                           controlAffinity: ListTileControlAffinity.leading,
                         )),
+                  ],
+                  if (_discounts.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    const Text('Доступные скидки', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                    ..._discounts.map((d) {
+                      final suffix = d['type'] == 'percent' ? '%' : '₽';
+                      final val = double.tryParse(d['value'].toString())?.toStringAsFixed(0) ?? '?';
+                      return CheckboxListTile(
+                        title: Text(d['name']),
+                        subtitle: Text('$val$suffix'),
+                        value: selectedDiscountIds.contains(d['id']),
+                        onChanged: (v) => setDialogState(() {
+                          if (v == true) selectedDiscountIds.add(d['id']);
+                          else selectedDiscountIds.remove(d['id']);
+                        }),
+                        dense: true,
+                        controlAffinity: ListTileControlAffinity.leading,
+                      );
+                    }),
                   ],
                 ],
               ),
@@ -456,10 +435,9 @@ class _ProductTemplatesAdminScreenState extends State<ProductTemplatesAdminScree
                   'allowTempered': allowTempered,
                   'complexityType': complexityType,
                   'complexityValue': double.tryParse(complexityValueCtrl.text.replaceAll(',', '.')) ?? 0,
-                  'discountType': discountType,
-                  'discountValue': double.tryParse(discountValueCtrl.text.replaceAll(',', '.')) ?? 0,
                   'processingIds': selectedProcessingIds.toList(),
                   'pieceWorkIds': selectedPieceWorkIds.toList(),
+                  'discountIds': selectedDiscountIds.toList(),
                 };
                 try {
                   if (item == null) {
@@ -864,6 +842,167 @@ class _AdminTypeBtn extends StatelessWidget {
                 fontSize: 13)),
       ),
     );
+  }
+}
+
+// ─── Экран управления скидками ────────────────────────────────────────────────
+
+class DiscountsAdminScreen extends StatefulWidget {
+  const DiscountsAdminScreen({super.key});
+
+  @override
+  State<DiscountsAdminScreen> createState() => _DiscountsAdminScreenState();
+}
+
+class _DiscountsAdminScreenState extends State<DiscountsAdminScreen> {
+  List<Map<String, dynamic>> _items = [];
+  List<Map<String, dynamic>> _productTemplates = [];
+  bool _loading = true;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    try {
+      final results = await Future.wait([
+        getIt<ApiClient>().dio.get('/catalog/discounts'),
+        getIt<ApiClient>().dio.get('/product-templates'),
+      ]);
+      setState(() {
+        _items = List<Map<String, dynamic>>.from(results[0].data['data']);
+        _productTemplates = List<Map<String, dynamic>>.from(results[1].data['data']);
+        _loading = false;
+      });
+    } catch (e) { setState(() => _loading = false); }
+  }
+
+  String _discountLabel(Map<String, dynamic> item) {
+    final suffix = item['type'] == 'percent' ? '%' : '₽';
+    final val = double.tryParse(item['value'].toString())?.toStringAsFixed(0) ?? '?';
+    return '${item['name']} ($val$suffix)';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF1F5F9),
+      appBar: AppBar(title: const Text('Скидки'), backgroundColor: Colors.white, foregroundColor: Colors.black87, elevation: 0),
+      floatingActionButton: FloatingActionButton(onPressed: () => _showDialog(context, null), child: const Icon(Icons.add)),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _items.isEmpty
+              ? Center(child: Text('Нет скидок', style: TextStyle(color: Colors.grey.shade500)))
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _items.length,
+                  itemBuilder: (context, index) {
+                    final item = _items[index];
+                    final tmplIds = List<String>.from(item['productTemplateIds'] ?? []);
+                    final tmplNames = tmplIds.map((id) {
+                      final t = _productTemplates.firstWhere((t) => t['id'] == id, orElse: () => <String, dynamic>{});
+                      if (t.isEmpty) return '?';
+                      return '${t['materialName'] ?? ''} ${t['thickness'] ?? ''}';
+                    }).toList();
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      child: ListTile(
+                        title: Text(_discountLabel(item), style: const TextStyle(fontWeight: FontWeight.w500)),
+                        subtitle: tmplNames.isNotEmpty
+                            ? Text('Изделия: ${tmplNames.join(', ')}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600), maxLines: 2, overflow: TextOverflow.ellipsis)
+                            : Text('Нет привязанных наименований', style: TextStyle(fontSize: 12, color: Colors.orange.shade700)),
+                        isThreeLine: tmplNames.isNotEmpty,
+                        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                          IconButton(icon: const Icon(Icons.edit_outlined, color: Colors.blue, size: 20), onPressed: () => _showDialog(context, item)),
+                          IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20), onPressed: () => _delete(context, item['id'])),
+                        ]),
+                      ),
+                    );
+                  },
+                ),
+    );
+  }
+
+  void _showDialog(BuildContext context, Map<String, dynamic>? item) {
+    final nameCtrl = TextEditingController(text: item?['name'] ?? '');
+    final valueCtrl = TextEditingController(text: item?['value']?.toString() ?? '');
+    String type = item?['type'] ?? 'percent';
+    final selectedIds = Set<String>.from(item?['productTemplateIds'] ?? []);
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setS) => AlertDialog(
+          title: Text(item == null ? 'Добавить скидку' : 'Редактировать скидку'),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Название (напр. 5% или Постоянный клиент)', border: OutlineInputBorder(), isDense: true)),
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    _AdminTypeBtn('%', 'percent', type, (v) => setS(() => type = v)),
+                    const SizedBox(width: 8),
+                    _AdminTypeBtn('₽', 'fixed', type, (v) => setS(() => type = v)),
+                    const SizedBox(width: 12),
+                    Expanded(child: TextField(
+                      controller: valueCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.,]'))],
+                      decoration: InputDecoration(labelText: 'Значение', suffixText: type == 'percent' ? '%' : '₽', border: const OutlineInputBorder(), isDense: true),
+                    )),
+                  ]),
+                  if (_productTemplates.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    const Divider(),
+                    const Text('Доступно для наименований', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    ..._productTemplates.map((t) => CheckboxListTile(
+                      title: Text('${t['materialName'] ?? ''} ${t['thickness'] ?? ''}'),
+                      subtitle: Text('${t['unitPrice']} ₽/м²'),
+                      value: selectedIds.contains(t['id']),
+                      onChanged: (v) => setS(() { if (v == true) selectedIds.add(t['id']); else selectedIds.remove(t['id']); }),
+                      dense: true, controlAffinity: ListTileControlAffinity.leading,
+                    )),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                final data = { 'name': nameCtrl.text, 'type': type, 'value': double.tryParse(valueCtrl.text.replaceAll(',', '.')) ?? 0, 'productTemplateIds': selectedIds.toList() };
+                try {
+                  if (item == null) { await getIt<ApiClient>().dio.post('/catalog/discounts', data: data); }
+                  else { await getIt<ApiClient>().dio.patch('/catalog/discounts/${item['id']}', data: data); }
+                  _load();
+                } catch (e) {
+                  if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $e'), backgroundColor: Colors.red));
+                }
+              },
+              child: const Text('Сохранить'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _delete(BuildContext context, String id) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(title: const Text('Удалить?'), actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+        ElevatedButton(onPressed: () => Navigator.pop(context, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), child: const Text('Удалить')),
+      ]),
+    );
+    if (confirmed == true) { await getIt<ApiClient>().dio.delete('/catalog/discounts/$id'); _load(); }
   }
 }
 

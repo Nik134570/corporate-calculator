@@ -43,6 +43,45 @@ router.delete('/services/:id', requireRole('ADMIN', 'MANAGER'), async (req, res,
   } catch (err) { next(err) }
 })
 
+// --- Шаблоны скидок ---
+const discInclude = { allowedProductTemplates: { select: { productTemplateId: true } } }
+const fmtDisc = i => ({ ...i, productTemplateIds: i.allowedProductTemplates.map(x => x.productTemplateId), allowedProductTemplates: undefined })
+
+router.get('/discounts', async (req, res, next) => {
+  try {
+    const items = await prisma.discountTemplate.findMany({ where: { isActive: true }, orderBy: [{ type: 'asc' }, { value: 'asc' }], include: discInclude })
+    res.json({ success: true, data: items.map(fmtDisc) })
+  } catch (err) { next(err) }
+})
+router.post('/discounts', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => {
+  try {
+    const { name, type, value, productTemplateIds } = req.body
+    const item = await prisma.discountTemplate.create({
+      data: { name, type, value, allowedProductTemplates: productTemplateIds?.length ? { create: productTemplateIds.map(id => ({ productTemplateId: id })) } : undefined },
+      include: discInclude,
+    })
+    res.status(201).json({ success: true, data: fmtDisc(item) })
+  } catch (err) { next(err) }
+})
+router.patch('/discounts/:id', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => {
+  try {
+    const { name, type, value, productTemplateIds } = req.body
+    const data = {}
+    if (name !== undefined) data.name = name
+    if (type !== undefined) data.type = type
+    if (value !== undefined) data.value = value
+    if (productTemplateIds !== undefined) data.allowedProductTemplates = { deleteMany: {}, create: productTemplateIds.map(id => ({ productTemplateId: id })) }
+    const item = await prisma.discountTemplate.update({ where: { id: req.params.id }, data, include: discInclude })
+    res.json({ success: true, data: fmtDisc(item) })
+  } catch (err) { next(err) }
+})
+router.delete('/discounts/:id', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => {
+  try {
+    await prisma.discountTemplate.update({ where: { id: req.params.id }, data: { isActive: false } })
+    res.json({ success: true })
+  } catch (err) { next(err) }
+})
+
 // --- Шаблоны обработки ---
 const procInclude = { allowedProductTemplates: { select: { productTemplateId: true } } }
 const fmtProc = i => ({ ...i, productTemplateIds: i.allowedProductTemplates.map(x => x.productTemplateId), allowedProductTemplates: undefined })

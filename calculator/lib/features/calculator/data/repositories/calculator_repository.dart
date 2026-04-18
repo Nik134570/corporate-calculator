@@ -2,7 +2,6 @@ import 'package:calculator/core/api/api_client.dart';
 import 'package:calculator/features/calculator/data/models/calculation_model.dart';
 import 'package:calculator/features/calculator/data/models/catalog_model.dart';
 import 'package:calculator/features/calculator/data/models/product_template_model.dart';
-import 'package:calculator/features/calculator/presentation/screens/new_calculation_screen.dart';
 
 class CalculatorRepository {
   final ApiClient _apiClient;
@@ -59,6 +58,11 @@ class CalculatorRepository {
   Future<List<PieceWorkTemplateModel>> getPieceWorkTemplates() async {
     final response = await _apiClient.dio.get('/catalog/piece-works');
     return (response.data['data'] as List).map((e) => PieceWorkTemplateModel.fromJson(e)).toList();
+  }
+
+  Future<List<DiscountTemplateModel>> getDiscountTemplates() async {
+    final response = await _apiClient.dio.get('/catalog/discounts');
+    return (response.data['data'] as List).map((e) => DiscountTemplateModel.fromJson(e)).toList();
   }
 
   Future<AppSettingsModel> getSettings() async {

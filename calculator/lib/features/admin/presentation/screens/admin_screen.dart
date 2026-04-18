@@ -934,6 +934,8 @@ class _CatalogTab extends StatelessWidget {
             onTap: () => context.push('/admin/catalog/processings')),
         _CatalogSection(title: 'Штучные работы', icon: Icons.build_outlined,
             onTap: () => context.push('/admin/catalog/piece-works')),
+        _CatalogSection(title: 'Скидки', icon: Icons.discount_outlined,
+            onTap: () => context.push('/admin/catalog/discounts')),
         _CatalogSection(title: 'Доп. услуги', icon: Icons.miscellaneous_services_outlined,
             onTap: () => context.push('/admin/catalog/services')),
         _CatalogSection(title: 'Настройки (цена закалки)', icon: Icons.settings_outlined,

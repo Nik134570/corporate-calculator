@@ -129,6 +129,7 @@ class CalcProductModel {
   final double totalPrice;
   final String discountType;
   final double discountValue;
+  final String? discountTemplateId;
   final String complexityType;
   final double complexityValue;
   final String? materialName;
@@ -149,6 +150,7 @@ class CalcProductModel {
     required this.totalPrice,
     this.discountType = 'none',
     this.discountValue = 0,
+    this.discountTemplateId,
     this.complexityType = 'none',
     this.complexityValue = 0,
     this.materialName,
@@ -177,6 +179,7 @@ class CalcProductModel {
       totalPrice: double.parse(json['totalPrice'].toString()),
       discountType: json['discountType'] ?? 'none',
       discountValue: double.parse((json['discountValue'] ?? 0).toString()),
+      discountTemplateId: json['discountTemplateId'],
       complexityType: json['complexityType'] ?? 'none',
       complexityValue: double.parse((json['complexityValue'] ?? 0).toString()),
       materialName: json['productTemplate']?['material']?['name'],

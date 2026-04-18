@@ -5,12 +5,11 @@ class ProductTemplateModel {
   final String thickness;
   final double unitPrice;
   final bool allowTempered;
-  final String discountType;
-  final double discountValue;
   final String complexityType;
   final double complexityValue;
   final List<String> allowedProcessingIds;
   final List<String> allowedPieceWorkIds;
+  final List<String> allowedDiscountIds;
 
   ProductTemplateModel({
     required this.id,
@@ -19,14 +18,14 @@ class ProductTemplateModel {
     required this.thickness,
     required this.unitPrice,
     this.allowTempered = false,
-    this.discountType = 'none',
-    this.discountValue = 0,
     this.complexityType = 'none',
     this.complexityValue = 0,
     List<String>? allowedProcessingIds,
     List<String>? allowedPieceWorkIds,
+    List<String>? allowedDiscountIds,
   })  : allowedProcessingIds = allowedProcessingIds ?? [],
-        allowedPieceWorkIds = allowedPieceWorkIds ?? [];
+        allowedPieceWorkIds = allowedPieceWorkIds ?? [],
+        allowedDiscountIds = allowedDiscountIds ?? [];
 
   String get displayName => '$materialName $thickness';
 
@@ -38,8 +37,6 @@ class ProductTemplateModel {
       thickness: json['thickness'],
       unitPrice: double.parse(json['unitPrice'].toString()),
       allowTempered: json['allowTempered'] == true,
-      discountType: json['discountType'] ?? 'none',
-      discountValue: double.parse((json['discountValue'] ?? 0).toString()),
       complexityType: json['complexityType'] ?? 'none',
       complexityValue: double.parse((json['complexityValue'] ?? 0).toString()),
       allowedProcessingIds: json['allowedProcessingIds'] != null
@@ -47,6 +44,9 @@ class ProductTemplateModel {
           : [],
       allowedPieceWorkIds: json['allowedPieceWorkIds'] != null
           ? List<String>.from(json['allowedPieceWorkIds'])
+          : [],
+      allowedDiscountIds: json['allowedDiscountIds'] != null
+          ? List<String>.from(json['allowedDiscountIds'])
           : [],
     );
   }

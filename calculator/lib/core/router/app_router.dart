@@ -86,6 +86,10 @@ final GoRouter appRouter = GoRouter(
       builder: (_, __) => const PieceWorksAdminScreen(),
     ),
     GoRoute(
+      path: '/admin/catalog/discounts',
+      builder: (_, __) => const DiscountsAdminScreen(),
+    ),
+    GoRoute(
       path: '/admin/catalog/services',
       builder: (_, __) => CatalogEditScreen(
         title: 'Дополнительные услуги',

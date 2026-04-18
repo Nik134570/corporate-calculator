@@ -10,6 +10,7 @@ const includeRelations = {
   material: true,
   allowedProcessings: { select: { processingId: true } },
   allowedPieceWorks: { select: { pieceWorkId: true } },
+  allowedDiscounts: { select: { discountId: true } },
 }
 
 function format(t) {
@@ -20,13 +21,12 @@ function format(t) {
     thickness: t.thickness,
     unitPrice: t.unitPrice,
     allowTempered: t.allowTempered,
-    discountType: t.discountType,
-    discountValue: t.discountValue,
     complexityType: t.complexityType,
     complexityValue: t.complexityValue,
     isActive: t.isActive,
     allowedProcessingIds: (t.allowedProcessings || []).map(x => x.processingId),
     allowedPieceWorkIds: (t.allowedPieceWorks || []).map(x => x.pieceWorkId),
+    allowedDiscountIds: (t.allowedDiscounts || []).map(x => x.discountId),
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
   }
@@ -45,19 +45,19 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
-    const { materialId, thickness, unitPrice, allowTempered, discountType, discountValue, complexityType, complexityValue, processingIds, pieceWorkIds } = req.body
+    const { materialId, thickness, unitPrice, allowTempered, complexityType, complexityValue, processingIds, pieceWorkIds, discountIds } = req.body
     const item = await prisma.productTemplate.create({
       data: {
         materialId, thickness, unitPrice,
         allowTempered: allowTempered ?? false,
-        discountType: discountType || 'none',
-        discountValue: discountValue || 0,
         complexityType: complexityType || 'none',
         complexityValue: complexityValue || 0,
         allowedProcessings: processingIds?.length
           ? { create: processingIds.map(id => ({ processingId: id })) } : undefined,
         allowedPieceWorks: pieceWorkIds?.length
           ? { create: pieceWorkIds.map(id => ({ pieceWorkId: id })) } : undefined,
+        allowedDiscounts: discountIds?.length
+          ? { create: discountIds.map(id => ({ discountId: id })) } : undefined,
       },
       include: includeRelations,
     })
@@ -70,14 +70,12 @@ router.post('/', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => {
 
 router.patch('/:id', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => {
   try {
-    const { materialId, thickness, unitPrice, allowTempered, discountType, discountValue, complexityType, complexityValue, isActive, processingIds, pieceWorkIds } = req.body
+    const { materialId, thickness, unitPrice, allowTempered, complexityType, complexityValue, isActive, processingIds, pieceWorkIds, discountIds } = req.body
     const data = {}
     if (materialId !== undefined) data.materialId = materialId
     if (thickness !== undefined) data.thickness = thickness
     if (unitPrice !== undefined) data.unitPrice = unitPrice
     if (allowTempered !== undefined) data.allowTempered = allowTempered
-    if (discountType !== undefined) data.discountType = discountType
-    if (discountValue !== undefined) data.discountValue = discountValue
     if (complexityType !== undefined) data.complexityType = complexityType
     if (complexityValue !== undefined) data.complexityValue = complexityValue
     if (isActive !== undefined) data.isActive = isActive
@@ -86,6 +84,9 @@ router.patch('/:id', requireRole('ADMIN', 'MANAGER'), async (req, res, next) => 
     }
     if (pieceWorkIds !== undefined) {
       data.allowedPieceWorks = { deleteMany: {}, create: pieceWorkIds.map(id => ({ pieceWorkId: id })) }
+    }
+    if (discountIds !== undefined) {
+      data.allowedDiscounts = { deleteMany: {}, create: discountIds.map(id => ({ discountId: id })) }
     }
     const item = await prisma.productTemplate.update({ where: { id: req.params.id }, data, include: includeRelations })
     res.json({ success: true, data: format(item) })

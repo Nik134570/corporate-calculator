@@ -7,6 +7,7 @@ import 'package:calculator/features/calculator/data/models/calculation_model.dar
 import 'package:calculator/features/calculator/data/models/catalog_model.dart';
 import 'package:calculator/features/calculator/data/models/product_template_model.dart';
 import 'package:calculator/features/calculator/data/repositories/calculator_repository.dart';
+export 'package:calculator/features/calculator/data/models/catalog_model.dart' show DiscountTemplateModel;
 
 // --- Локальные модели ---
 
@@ -40,6 +41,7 @@ class ProductInput {
   double temperedPrice;
   String discountType;
   double discountValue;
+  String? discountTemplateId;
   String complexityType;
   double complexityValue;
 
@@ -58,6 +60,7 @@ class ProductInput {
     this.temperedPrice = 100,
     this.discountType = 'none',
     this.discountValue = 0,
+    this.discountTemplateId,
     this.complexityType = 'none',
     this.complexityValue = 0,
   })  : processings = processings ?? [],
@@ -86,6 +89,9 @@ class ProductInput {
   double get unitTotal => (unitBaseTotal + complexityAmount - discountAmount).clamp(0, double.infinity);
   double get total => unitTotal * quantity;
 
+  bool get hasCustomDiscount =>
+      discountTemplateId == null && discountType != 'none' && discountValue > 0;
+
   bool get hasPriceChanges {
     if (originalPricePerSqm != null && pricePerSqm != originalPricePerSqm) return true;
     for (final p in processings) {
@@ -94,6 +100,7 @@ class ProductInput {
     for (final p in pieceWorks) {
       if (p.originalUnitPrice != null && p.unitPrice != p.originalUnitPrice) return true;
     }
+    if (hasCustomDiscount) return true;
     return false;
   }
 
@@ -110,6 +117,7 @@ class ProductInput {
         'totalPrice': unitTotal,
         'discountType': discountType,
         'discountValue': discountValue,
+        'discountTemplateId': discountTemplateId,
         'complexityType': complexityType,
         'complexityValue': complexityValue,
         'processings': processings.map((p) => {
@@ -140,6 +148,7 @@ class ProductInput {
         temperedPrice: temperedPrice,
         discountType: m.discountType,
         discountValue: m.discountValue,
+        discountTemplateId: m.discountTemplateId,
         complexityType: m.complexityType,
         complexityValue: m.complexityValue,
         processings: m.processings
@@ -195,6 +204,7 @@ class _NewCalculationScreenState extends State<NewCalculationScreen> {
   double _temperedPrice = 100;
   List<ProcessingTemplateModel> _processingTemplates = [];
   List<PieceWorkTemplateModel> _pieceWorkTemplates = [];
+  List<DiscountTemplateModel> _discountTemplates = [];
 
   bool get _isEditing => widget.editCalculation != null;
   // Работник редактирует существующий расчёт → обязательная модерация
@@ -257,6 +267,7 @@ class _NewCalculationScreenState extends State<NewCalculationScreen> {
         getIt<CalculatorRepository>().getSettings(),
         getIt<CalculatorRepository>().getProcessingTemplates(),
         getIt<CalculatorRepository>().getPieceWorkTemplates(),
+        getIt<CalculatorRepository>().getDiscountTemplates(),
       ]);
       if (!mounted) return;
       final settings = results[0] as AppSettingsModel;
@@ -264,6 +275,7 @@ class _NewCalculationScreenState extends State<NewCalculationScreen> {
         _temperedPrice = settings.temperedPrice;
         _processingTemplates = results[1] as List<ProcessingTemplateModel>;
         _pieceWorkTemplates = results[2] as List<PieceWorkTemplateModel>;
+        _discountTemplates = results[3] as List<DiscountTemplateModel>;
         for (final p in _products) {
           p.temperedPrice = settings.temperedPrice;
         }
@@ -376,6 +388,7 @@ class _NewCalculationScreenState extends State<NewCalculationScreen> {
                 productTemplates: widget.productTemplates,
                 processingTemplates: _processingTemplates,
                 pieceWorkTemplates: _pieceWorkTemplates,
+                discountTemplates: _discountTemplates,
                 onChanged: () => setState(() {}),
                 onRemove: _products.length > 1
                     ? () => setState(() => _products.removeAt(e.key))
@@ -692,6 +705,7 @@ class _ProductBlock extends StatefulWidget {
   final List<ProductTemplateModel> productTemplates;
   final List<ProcessingTemplateModel> processingTemplates;
   final List<PieceWorkTemplateModel> pieceWorkTemplates;
+  final List<DiscountTemplateModel> discountTemplates;
   final VoidCallback onChanged;
   final VoidCallback? onRemove;
 
@@ -702,6 +716,7 @@ class _ProductBlock extends StatefulWidget {
     required this.productTemplates,
     required this.processingTemplates,
     required this.pieceWorkTemplates,
+    required this.discountTemplates,
     required this.onChanged,
     this.onRemove,
   });
@@ -767,6 +782,14 @@ class _ProductBlockState extends State<_ProductBlock> {
     if (tmpl == null) return widget.pieceWorkTemplates;
     return widget.pieceWorkTemplates
         .where((t) => tmpl.allowedPieceWorkIds.contains(t.id))
+        .toList();
+  }
+
+  List<DiscountTemplateModel> get _allowedDiscounts {
+    final tmpl = _selectedTemplate;
+    if (tmpl == null) return [];
+    return widget.discountTemplates
+        .where((t) => tmpl.allowedDiscountIds.contains(t.id))
         .toList();
   }
 
@@ -854,19 +877,16 @@ class _ProductBlockState extends State<_ProductBlock> {
                         p.pricePerSqm = price;
                         p.originalPricePerSqm = originalPrice;
                         _priceCtrl.text = price > 0 ? price.toString() : '';
+                        p.discountType = 'none'; p.discountValue = 0; p.discountTemplateId = null;
+                        _discountValueCtrl.clear();
                         if (tmpl != null) {
                           if (!tmpl.allowTempered) p.isTempered = false;
-                          p.discountType = tmpl.discountType;
-                          p.discountValue = tmpl.discountValue;
                           p.complexityType = tmpl.complexityType;
                           p.complexityValue = tmpl.complexityValue;
                           _complexityValueCtrl.text = tmpl.complexityValue > 0 ? tmpl.complexityValue.toString() : '';
-                          _discountValueCtrl.text = tmpl.discountValue > 0 ? tmpl.discountValue.toString() : '';
                         } else {
-                          p.discountType = 'none'; p.discountValue = 0;
                           p.complexityType = 'none'; p.complexityValue = 0;
                           _complexityValueCtrl.clear();
-                          _discountValueCtrl.clear();
                         }
                       });
                       widget.onChanged();
@@ -1011,7 +1031,7 @@ class _ProductBlockState extends State<_ProductBlock> {
                   const Divider(),
                   const SizedBox(height: 8),
 
-                  _buildDiscountComplexitySection(p),
+                  _buildDiscountComplexitySection(p, _allowedDiscounts),
                 ],
               ),
             ),
@@ -1021,11 +1041,13 @@ class _ProductBlockState extends State<_ProductBlock> {
     );
   }
 
-  Widget _buildDiscountComplexitySection(ProductInput p) {
+  Widget _buildDiscountComplexitySection(ProductInput p, List<DiscountTemplateModel> allowedDiscounts) {
     double parseVal(TextEditingController c) =>
         double.tryParse(c.text.replaceAll(',', '.')) ?? 0;
 
     void update() { setState(() {}); widget.onChanged(); }
+
+    final isCustomDiscount = p.discountTemplateId == null && p.discountType != 'none';
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -1086,25 +1108,68 @@ class _ProductBlockState extends State<_ProductBlock> {
 
           const SizedBox(height: 10),
 
-          // Discount
+          // Discount — chips
           Text('Скидка', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
           const SizedBox(height: 6),
-          Row(children: [
-            _SmallTypeBtn('Нет', 'none', p.discountType, (v) {
-              setState(() { p.discountType = v; p.discountValue = 0; _discountValueCtrl.clear(); });
-              widget.onChanged();
-            }),
-            const SizedBox(width: 6),
-            _SmallTypeBtn('%', 'percent', p.discountType, (v) {
-              setState(() { p.discountType = v; p.discountValue = parseVal(_discountValueCtrl); });
-              widget.onChanged();
-            }),
-            const SizedBox(width: 6),
-            _SmallTypeBtn('₽', 'fixed', p.discountType, (v) {
-              setState(() { p.discountType = v; p.discountValue = parseVal(_discountValueCtrl); });
-              widget.onChanged();
-            }),
-            if (p.discountType != 'none') ...[
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              // Нет
+              _DiscountChip(
+                label: 'Нет',
+                selected: p.discountType == 'none',
+                onTap: () {
+                  setState(() {
+                    p.discountType = 'none'; p.discountValue = 0; p.discountTemplateId = null;
+                    _discountValueCtrl.clear();
+                  });
+                  widget.onChanged();
+                },
+              ),
+              // Predefined chips
+              ...allowedDiscounts.map((d) => _DiscountChip(
+                label: d.label,
+                selected: p.discountTemplateId == d.id,
+                onTap: () {
+                  setState(() {
+                    p.discountTemplateId = d.id;
+                    p.discountType = d.type;
+                    p.discountValue = d.value;
+                    _discountValueCtrl.text = d.value.toStringAsFixed(0);
+                  });
+                  widget.onChanged();
+                },
+              )),
+              // Своя
+              _DiscountChip(
+                label: 'Своя...',
+                selected: isCustomDiscount,
+                isCustom: true,
+                onTap: () {
+                  setState(() {
+                    p.discountTemplateId = null;
+                    if (p.discountType == 'none') p.discountType = 'percent';
+                  });
+                  widget.onChanged();
+                },
+              ),
+            ],
+          ),
+
+          // Custom input (показывается при Своя или уже кастомной скидке)
+          if (isCustomDiscount) ...[
+            const SizedBox(height: 8),
+            Row(children: [
+              _SmallTypeBtn('%', 'percent', p.discountType, (v) {
+                setState(() { p.discountType = v; p.discountValue = parseVal(_discountValueCtrl); });
+                widget.onChanged();
+              }),
+              const SizedBox(width: 6),
+              _SmallTypeBtn('₽', 'fixed', p.discountType, (v) {
+                setState(() { p.discountType = v; p.discountValue = parseVal(_discountValueCtrl); });
+                widget.onChanged();
+              }),
               const SizedBox(width: 8),
               SizedBox(
                 width: 90,
@@ -1112,6 +1177,7 @@ class _ProductBlockState extends State<_ProductBlock> {
                   controller: _discountValueCtrl,
                   suffix: p.discountType == 'percent' ? '%' : '₽',
                   onChanged: (v) {
+                    p.discountTemplateId = null;
                     p.discountValue = double.tryParse(v.replaceAll(',', '.')) ?? 0;
                     update();
                   },
@@ -1122,8 +1188,16 @@ class _ProductBlockState extends State<_ProductBlock> {
                 Text('-${p.discountAmount.toStringAsFixed(2)} ₽',
                     style: const TextStyle(color: Colors.red, fontSize: 12)),
               ],
-            ],
-          ]),
+              const SizedBox(width: 6),
+              Icon(Icons.info_outline, size: 14, color: Colors.orange.shade600),
+              const SizedBox(width: 4),
+              Text('модерация', style: TextStyle(fontSize: 11, color: Colors.orange.shade700)),
+            ]),
+          ] else if (p.discountType != 'none' && p.discountTemplateId != null && p.discountAmount > 0) ...[
+            const SizedBox(height: 4),
+            Text('-${p.discountAmount.toStringAsFixed(2)} ₽',
+                style: const TextStyle(color: Colors.red, fontSize: 12)),
+          ],
         ],
       ),
     );
@@ -1602,6 +1676,35 @@ class _PieceWorksSectionState extends State<_PieceWorksSection> {
 }
 
 // --- Вспомогательные виджеты ---
+
+class _DiscountChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final bool isCustom;
+  final VoidCallback onTap;
+  const _DiscountChip({required this.label, required this.selected, required this.onTap, this.isCustom = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isCustom ? Colors.orange.shade700 : Colors.blueGrey.shade700;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? color : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: selected ? color : Colors.grey.shade300),
+        ),
+        child: Text(label,
+            style: TextStyle(
+                color: selected ? Colors.white : Colors.grey.shade700,
+                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                fontSize: 12)),
+      ),
+    );
+  }
+}
 
 class _SmallTypeBtn extends StatelessWidget {
   final String label;

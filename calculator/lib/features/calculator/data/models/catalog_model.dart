@@ -58,6 +58,34 @@ class PieceWorkTemplateModel {
       );
 }
 
+class DiscountTemplateModel {
+  final String id;
+  final String name;
+  final String type; // 'percent' | 'fixed'
+  final double value;
+  final List<String> productTemplateIds;
+
+  DiscountTemplateModel({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.value,
+    List<String>? productTemplateIds,
+  }) : productTemplateIds = productTemplateIds ?? [];
+
+  String get label => name;
+
+  factory DiscountTemplateModel.fromJson(Map<String, dynamic> json) => DiscountTemplateModel(
+        id: json['id'],
+        name: json['name'],
+        type: json['type'],
+        value: double.parse(json['value'].toString()),
+        productTemplateIds: json['productTemplateIds'] != null
+            ? List<String>.from(json['productTemplateIds'])
+            : [],
+      );
+}
+
 class AppSettingsModel {
   final String id;
   final double temperedPrice;

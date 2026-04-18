@@ -104,6 +104,7 @@ const buildProducts = (products) => products.map((p, idx) => ({
   totalPrice: p.totalPrice,
   discountType: p.discountType || 'none',
   discountValue: p.discountValue || 0,
+  discountTemplateId: p.discountTemplateId || null,
   complexityType: p.complexityType || 'none',
   complexityValue: p.complexityValue || 0,
   sortOrder: idx,
