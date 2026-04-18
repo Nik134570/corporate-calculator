@@ -91,7 +91,6 @@ model ProductTemplate {
   allowedProcessings ProductTemplateProcessing[]
   allowedPieceWorks  ProductTemplatePieceWork[]
 
-  @@unique([materialId, thickness])
   @@map("product_templates")
 }
 
